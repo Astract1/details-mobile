@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   TextInput,
@@ -7,6 +7,7 @@ import {
   Text,
   Alert,
   TouchableOpacity,
+  ScrollView,
 } from "react-native";
 import { ThemedView } from "@/components/themed-view";
 import { ThemedText } from "@/components/themed-text";
@@ -26,7 +27,7 @@ export default function ClientesScreen() {
   const [editandoId, setEditandoId] = useState<number | null>(null);
 
   // 🔹 Agregar o actualizar cliente
-  const agregarCliente = () => {
+  const agregarCliente = async () => {
     if (!nombre.trim()) {
       Alert.alert("Error", "El nombre es obligatorio");
       return;
@@ -39,6 +40,22 @@ export default function ClientesScreen() {
       );
       setClientes(actualizados);
       setEditandoId(null);
+
+      const response = await fetch(
+        `http://localhost:3000/clients/${editandoId}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            nombre,
+            direccion,
+            telefono,
+          }),
+        }
+      );
+
       Alert.alert("Éxito", "Cliente actualizado correctamente");
     } else {
       // Crear nuevo cliente
@@ -50,6 +67,20 @@ export default function ClientesScreen() {
       };
       setClientes([...clientes, nuevoCliente]);
       Alert.alert("Éxito", "Cliente agregado correctamente");
+
+      const response = await fetch(`http://localhost:3000/clients`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          nombre,
+          direccion,
+          telefono,
+        }),
+      });
+
+      console.log("RESPUESTA AGREGAR CLIENTES", response);
     }
 
     setNombre("");
@@ -58,17 +89,26 @@ export default function ClientesScreen() {
   };
 
   // 🔹 Eliminar cliente
-  const eliminarCliente = (id: number) => {
-    Alert.alert("Confirmar eliminación", "¿Deseas eliminar este cliente?", [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Eliminar",
-        style: "destructive",
-        onPress: () => {
-          setClientes(clientes.filter((c) => c.id_cliente !== id));
-        },
-      },
-    ]);
+  const eliminarCliente = async (id: number) => {
+    try {
+      const response = await fetch(`http://localhost:3000/clients/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error("Error al eliminar el cliente");
+      }
+
+      // Actualizamos el estado eliminando el cliente
+      setClientes((prevClientes) =>
+        prevClientes.filter((c) => c.id_cliente !== id)
+      );
+
+      Alert.alert("Éxito", "Cliente eliminado correctamente");
+    } catch (error) {
+      console.error("Error al eliminar el cliente:", error);
+      Alert.alert("Error", "No se pudo eliminar el cliente");
+    }
   };
 
   // 🔹 Editar cliente (rellena formulario)
@@ -77,109 +117,140 @@ export default function ClientesScreen() {
     setDireccion(cliente.direccion);
     setTelefono(cliente.telefono);
     setEditandoId(cliente.id_cliente);
+    console.log(cliente);
   };
 
+  useEffect(() => {
+    const obtenerClientes = async () => {
+      try {
+        const response = await fetch("http://localhost:3000/clients");
+        if (!response.ok) {
+          throw new Error("Error al obtener los clientes");
+        }
+
+        const data = await response.json();
+        setClientes(data);
+      } catch (error) {
+        console.error(error);
+        Alert.alert("Error", "No se pudo conectar con el servidor");
+      }
+    };
+
+    obtenerClientes();
+  }, []);
+
   return (
-    <ThemedView style={styles.container}>
-      {/* Encabezado */}
-      <View style={styles.header}>
-        <ThemedText type="title" style={styles.title}>
-          Gestión de Clientes
-        </ThemedText>
-        <ThemedText type="default">
-          Registra, edita o elimina tus clientes fácilmente.
-        </ThemedText>
-      </View>
+    <ScrollView
+      showsVerticalScrollIndicator={true}
+      contentContainerStyle={{ paddingBottom: 5 }}
+    >
+      <ThemedView style={styles.container}>
+        {/* Encabezado */}
+        <View style={styles.header}>
+          <ThemedText type="title" style={styles.title}>
+            Gestión de Clientes
+          </ThemedText>
+          <ThemedText type="default">
+            Registra, edita o elimina tus clientes fácilmente.
+          </ThemedText>
+        </View>
 
-      {/* Formulario */}
-      <View style={styles.form}>
-        <TextInput
-          style={styles.input}
-          placeholder="Nombre completo"
-          value={nombre}
-          onChangeText={setNombre}
-          placeholderTextColor="#777"
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Dirección"
-          value={direccion}
-          onChangeText={setDireccion}
-          placeholderTextColor="#777"
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Teléfono"
-          value={telefono}
-          onChangeText={setTelefono}
-          keyboardType="phone-pad"
-          placeholderTextColor="#777"
-        />
-
-        <TouchableOpacity style={styles.button} onPress={agregarCliente}>
-          <Text style={styles.buttonText}>
-            {editandoId ? "Guardar Cambios" : "Agregar Cliente"}
-          </Text>
-        </TouchableOpacity>
-
-        {editandoId && (
-          <TouchableOpacity
-            style={[styles.button, styles.cancelButton]}
-            onPress={() => {
-              setEditandoId(null);
-              setNombre("");
-              setDireccion("");
-              setTelefono("");
-            }}
-          >
-            <Text style={styles.buttonText}>Cancelar Edición</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Lista */}
-      <View style={{ marginTop: 24 }}>
-        <ThemedText type="subtitle" style={styles.subtitle}>
-          Lista de Clientes
-        </ThemedText>
-
-        {clientes.length === 0 ? (
-          <Text style={styles.emptyText}>No hay clientes registrados.</Text>
-        ) : (
-          <FlatList
-            data={clientes}
-            keyExtractor={(item) => item.id_cliente.toString()}
-            renderItem={({ item }) => (
-              <View style={styles.clienteCard}>
-                <View style={styles.cardHeader}>
-                  <Text style={styles.clienteNombre}>{item.nombre}</Text>
-                  <View style={styles.actions}>
-                    <TouchableOpacity
-                      onPress={() => editarCliente(item)}
-                      style={[styles.actionBtn, { backgroundColor: "#4CAF50" }]}
-                    >
-                      <Text style={styles.actionText}>Editar</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => eliminarCliente(item.id_cliente)}
-                      style={[styles.actionBtn, { backgroundColor: "#FF3B30" }]}
-                    >
-                      <Text style={styles.actionText}>Eliminar</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-                {item.direccion ? (
-                  <Text style={styles.cardText}>📍 {item.direccion}</Text>
-                ) : null}
-                {item.telefono ? (
-                  <Text style={styles.cardText}>📞 {item.telefono}</Text>
-                ) : null}
-              </View>
-            )}
+        {/* Formulario */}
+        <View style={styles.form}>
+          <TextInput
+            style={styles.input}
+            placeholder="Nombre completo"
+            value={nombre}
+            onChangeText={setNombre}
+            placeholderTextColor="#777"
           />
-        )}
-      </View>
-    </ThemedView>
+          <TextInput
+            style={styles.input}
+            placeholder="Dirección"
+            value={direccion}
+            onChangeText={setDireccion}
+            placeholderTextColor="#777"
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Teléfono"
+            value={telefono}
+            onChangeText={setTelefono}
+            keyboardType="phone-pad"
+            placeholderTextColor="#777"
+          />
+
+          <TouchableOpacity style={styles.button} onPress={agregarCliente}>
+            <Text style={styles.buttonText}>
+              {editandoId ? "Guardar Cambios" : "Agregar Cliente"}
+            </Text>
+          </TouchableOpacity>
+
+          {editandoId && (
+            <TouchableOpacity
+              style={[styles.button, styles.cancelButton]}
+              onPress={() => {
+                setEditandoId(null);
+                setNombre("");
+                setDireccion("");
+                setTelefono("");
+              }}
+            >
+              <Text style={styles.buttonText}>Cancelar Edición</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Lista */}
+        <View style={{ marginTop: 24 }}>
+          <ThemedText type="subtitle" style={styles.subtitle}>
+            Lista de Clientes
+          </ThemedText>
+
+          {clientes.length === 0 ? (
+            <Text style={styles.emptyText}>No hay clientes registrados.</Text>
+          ) : (
+            <FlatList
+              data={clientes}
+              keyExtractor={(item) => item.id_cliente.toString()}
+              renderItem={({ item }) => (
+                <View style={styles.clienteCard}>
+                  <View style={styles.cardHeader}>
+                    <View style={styles.actions}>
+                      <TouchableOpacity
+                        onPress={() => editarCliente(item)}
+                        style={[
+                          styles.actionBtn,
+                          { backgroundColor: "#4CAF50" },
+                        ]}
+                      >
+                        <Text style={styles.actionText}>Editar</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => eliminarCliente(item.id_cliente)}
+                        style={[
+                          styles.actionBtn,
+                          { backgroundColor: "#FF3B30" },
+                        ]}
+                      >
+                        <Text style={styles.actionText}>Eliminar</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  <Text style={styles.clienteNombre}>{item.nombre}</Text>
+                  {item.direccion ? (
+                    <Text style={styles.cardText}>📍 {item.direccion}</Text>
+                  ) : null}
+                  {item.telefono ? (
+                    <Text style={styles.cardText}>📞 {item.telefono}</Text>
+                  ) : null}
+                </View>
+              )}
+            />
+          )}
+        </View>
+      </ThemedView>
+    </ScrollView>
   );
 }
 

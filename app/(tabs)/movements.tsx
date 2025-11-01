@@ -1,8 +1,10 @@
-import { StyleSheet, FlatList, View } from "react-native";
+import { StyleSheet, FlatList, View, TouchableOpacity } from "react-native";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Fonts } from "@/constants/theme";
+import { useEffect, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
 
 type Product = {
   id: number;
@@ -12,53 +14,45 @@ type Product = {
 };
 
 type Movement = {
-  id: number;
+  id_movimiento: number;
   client: string;
   product: string;
-  quantity: number;
-  total: number;
+  cantidad: number;
+  precio_total_linea: number;
 };
 
-// 🔹 Movimientos predefinidos simulando compras
-const movements: Movement[] = [
-  {
-    id: 1,
-    client: "Juan Pérez",
-    product: "Café 500g",
-    quantity: 2,
-    total: 24000,
-  },
-  {
-    id: 2,
-    client: "Juan Pérez",
-    product: "Azúcar 1kg",
-    quantity: 1,
-    total: 3500,
-  },
-  {
-    id: 3,
-    client: "María López",
-    product: "Aceite 1L",
-    quantity: 3,
-    total: 29400,
-  },
-  {
-    id: 4,
-    client: "María López",
-    product: "Arroz 5kg",
-    quantity: 1,
-    total: 18000,
-  },
-  {
-    id: 5,
-    client: "Carlos Gómez",
-    product: "Sal 500g",
-    quantity: 5,
-    total: 7500,
-  },
-];
-
 export default function MovementsScreen() {
+  const [movements, setMovements] = useState<any[]>([]);
+
+  const handleRefresh = async () => {
+    try {
+      console.log("aaaaaa");
+      const response = await fetch("http://localhost:3000/movements");
+      const data = await response.json();
+      setMovements(data);
+
+      console.log("PRODUCTOS REFRESCADOS", data);
+    } catch (error) {
+      console.error("Error al cargar productos:", error);
+    }
+  };
+
+  useEffect(() => {
+    const fetchProductos = async () => {
+      try {
+        const response = await fetch("http://localhost:3000/movements");
+        const data = await response.json();
+
+        setMovements(data);
+        console.log("MOVIMIENTOS", data);
+      } catch (error) {
+        console.error("Error al cargar MOVIMIENTOS:", error);
+      }
+    };
+
+    fetchProductos();
+  }, []);
+
   const renderMovement = ({ item }: { item: Movement }) => (
     <ThemedView style={styles.card}>
       <View style={styles.row}>
@@ -71,12 +65,12 @@ export default function MovementsScreen() {
             {item.client}
           </ThemedText>
           <ThemedText style={styles.detailText}>
-            Compró {item.quantity} × {item.product}
+            Compró {item.cantidad} × {item.product}
           </ThemedText>
         </View>
 
         <ThemedText type="defaultSemiBold" style={styles.amountText}>
-          ${item.total.toLocaleString()}
+          ${item.precio_total_linea.toLocaleString()}
         </ThemedText>
       </View>
     </ThemedView>
@@ -91,11 +85,14 @@ export default function MovementsScreen() {
         <ThemedText type="default" style={styles.subtitle}>
           Consulta los movimientos de compra de los clientes.
         </ThemedText>
+        <TouchableOpacity onPress={handleRefresh} style={styles.refreshButton}>
+          <Ionicons name="refresh" size={24} color="#007AFF" />
+        </TouchableOpacity>
       </View>
 
       <FlatList
         data={movements}
-        keyExtractor={(item) => item.id.toString()}
+        keyExtractor={(item) => item.id_movimiento.toString()}
         renderItem={renderMovement}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 80 }}
@@ -132,6 +129,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 1,
+  },
+  refreshButton: {
+    backgroundColor: "#E6F0FF",
+    padding: 8,
+    borderRadius: 50,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   row: {
     flexDirection: "row",

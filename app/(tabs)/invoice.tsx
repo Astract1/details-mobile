@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   StyleSheet,
   FlatList,
@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Modal,
   TextInput,
+  Alert,
 } from "react-native";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -21,23 +22,18 @@ type Product = {
 
 type Invoice = {
   id: number;
-  client: string;
-  products: Product[];
+  cliente: string;
+  products: number;
+  total: string;
 };
-
-const availableProducts: Product[] = [
-  { id: 1, name: "Café 500g", quantity: 0, price: 12000 },
-  { id: 2, name: "Azúcar 1kg", quantity: 0, price: 3500 },
-  { id: 3, name: "Aceite 1L", quantity: 0, price: 9800 },
-  { id: 4, name: "Arroz 5kg", quantity: 0, price: 18000 },
-];
 
 export default function InvoicesScreen() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [clientName, setClientName] = useState("");
   const [productId, setProductId] = useState("");
-  const [newProducts, setNewProducts] = useState<Product[]>([]);
+  const [newProducts, setNewProducts] = useState<any[]>([]);
+  const [availableProducts, setAvailableProducts] = useState<any[]>([]);
 
   const generateRandomId = () => Math.floor(1000 + Math.random() * 9000);
 
@@ -48,41 +44,142 @@ export default function InvoicesScreen() {
     const alreadyAdded = newProducts.find((p) => p.id === id);
     if (alreadyAdded) return alert("Este producto ya fue agregado");
 
-    setNewProducts([...newProducts, { ...found, quantity: 1 }]);
+    setNewProducts([...newProducts, { ...found, cantidadTotal: 1 }]);
     setProductId("");
   };
 
   const changeQuantity = (id: number, delta: number) => {
+    console.log(newProducts, delta);
     setNewProducts((prev) =>
       prev.map((p) =>
-        p.id === id ? { ...p, quantity: Math.max(1, p.quantity + delta) } : p
+        p.id === id
+          ? { ...p, cantidadTotal: Math.max(1, p.cantidadTotal + delta) }
+          : p
       )
     );
   };
 
-  const handleSaveInvoice = () => {
+  const handleSaveInvoice = async () => {
     if (!clientName.trim()) return alert("Debe ingresar el nombre del cliente");
     if (newProducts.length === 0)
       return alert("Debe agregar al menos un producto");
 
-    const newInvoice: Invoice = {
-      id: generateRandomId(),
-      client: clientName.trim(),
-      products: newProducts,
-    };
+    const total = newProducts.reduce(
+      (acc, p) => acc + p.price * p.cantidadTotal,
+      0
+    );
 
-    setInvoices((prev) => [...prev, newInvoice]);
+    console.log("newProducts", newProducts);
+
     setModalVisible(false);
     setClientName("");
     setProductId("");
     setNewProducts([]);
+
+    const fecha = new Date().toISOString().slice(0, 19).replace("T", " ");
+
+    console.log(total, fecha);
+
+    console.log("PRODUCTOS", newProducts);
+    let data: any;
+    try {
+      const response = await fetch("http://localhost:3000/invoices", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          cliente: clientName,
+          fecha,
+          total,
+          products: newProducts.length,
+        }),
+      });
+
+      data = await response.json();
+
+      const newInvoice: any = {
+        id: data.factura.id_factura,
+        cliente: clientName.trim(),
+        products: newProducts.length,
+        total,
+      };
+      setInvoices((prev) => [...prev, newInvoice]);
+
+      console.log("RESPUESTA CREAR FACTURA:", data);
+    } catch (error) {
+      console.log("ERROR CREANDO FACTURA", error);
+    }
+
+    console.log("data.factura.id_factura", data.factura.id_factura);
+
+    // Actualizar productos
+    try {
+      const response = await fetch("http://localhost:3000/products", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          cliente: clientName.trim(),
+          total,
+          newProducts,
+          id_factura: data.factura.id_factura,
+        }),
+      });
+
+      console.log("RESPUESTA ACTUALIZAR PRODUCTOS", response);
+    } catch (error) {
+      console.log("ERROR ACTUALIZANDO PRODUCTOS", error);
+    }
   };
 
+  useEffect(() => {
+    const fetchProductos = async () => {
+      try {
+        const response = await fetch("http://localhost:3000/products/a");
+        const data = await response.json();
+
+        console.log("PRODUCTOS", data);
+
+        const products = data.map((prod: any) => ({
+          ...prod,
+          cantidadTotal: 1,
+        }));
+
+        setAvailableProducts(products);
+      } catch (error) {
+        console.error("Error al cargar productos:", error);
+        Alert.alert("Error", "No se pudieron cargar los productos");
+      }
+    };
+
+    fetchProductos();
+  }, [modalVisible]);
+
+  useEffect(() => {
+    const fetchInvoices = async () => {
+      try {
+        const response = await fetch("http://localhost:3000/invoices");
+        const data = await response.json();
+
+        console.log("INVOICES", data);
+
+        setInvoices(data);
+      } catch (error) {
+        console.error("Error al cargar facturas:", error);
+        Alert.alert("Error", "No se pudieron cargar las facturas");
+      }
+    };
+
+    fetchInvoices();
+  }, []);
+
   const renderInvoice = ({ item }: { item: Invoice }) => {
-    const total = item.products.reduce(
-      (acc, p) => acc + p.price * p.quantity,
-      0
-    );
+    // const total = item.products.reduce(
+    //   (acc, p) => acc + p.price * p.quantity,
+    //   0
+    // );
 
     return (
       <ThemedView style={styles.card}>
@@ -96,20 +193,23 @@ export default function InvoicesScreen() {
           </View>
           <View style={{ flex: 1 }}>
             <ThemedText type="subtitle" style={{ fontFamily: Fonts.rounded }}>
-              {item.client}
+              Id: {item.id}
+            </ThemedText>
+            <ThemedText type="subtitle" style={{ fontFamily: Fonts.rounded }}>
+              {item.cliente}
             </ThemedText>
             <ThemedText style={{ color: "#6B7280", fontSize: 13 }}>
-              {item.products.length} productos
+              {item.products} productos
             </ThemedText>
           </View>
           <ThemedText type="defaultSemiBold" style={styles.totalText}>
-            ${total.toLocaleString()}
+            {/* ${total.toLocaleString()} */}${item.total}
           </ThemedText>
         </View>
 
-        <View style={styles.divider} />
+        {/* <View style={styles.divider} /> */}
 
-        <View style={styles.productsContainer}>
+        {/* <View style={styles.productsContainer}>
           {item.products.map((p) => (
             <View key={p.id} style={styles.productRow}>
               <ThemedText style={styles.productName}>{p.name}</ThemedText>
@@ -119,13 +219,13 @@ export default function InvoicesScreen() {
               </ThemedText>
             </View>
           ))}
-        </View>
+        </View> */}
       </ThemedView>
     );
   };
 
   const totalNewInvoice = newProducts.reduce(
-    (acc, p) => acc + p.price * p.quantity,
+    (acc, p) => acc + p.price * p.cantidadTotal,
     0
   );
 
@@ -206,11 +306,12 @@ export default function InvoicesScreen() {
                         <ThemedText>-</ThemedText>
                       </TouchableOpacity>
                       <ThemedText style={styles.productQty}>
-                        {p.quantity}
+                        {+p.cantidadTotal}
                       </ThemedText>
                       <TouchableOpacity
                         onPress={() => changeQuantity(p.id, 1)}
                         style={styles.qtyBtn}
+                        disabled={p.cantidadTotal >= p.quantity}
                       >
                         <ThemedText>+</ThemedText>
                       </TouchableOpacity>

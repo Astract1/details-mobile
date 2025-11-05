@@ -5,6 +5,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Fonts } from "@/constants/theme";
 import { useEffect, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
+import { getApiUrl } from "@/constants/api";
 
 type Product = {
   id: number;
@@ -27,7 +28,7 @@ export default function MovementsScreen() {
   const handleRefresh = async () => {
     try {
       console.log("aaaaaa");
-      const response = await fetch("http://localhost:3000/movements");
+      const response = await fetch(`${getApiUrl()}/movements`);
       const data = await response.json();
       setMovements(data);
 
@@ -40,7 +41,7 @@ export default function MovementsScreen() {
   useEffect(() => {
     const fetchProductos = async () => {
       try {
-        const response = await fetch("http://localhost:3000/movements");
+        const response = await fetch(`${getApiUrl()}/movements`);
         const data = await response.json();
 
         setMovements(data);

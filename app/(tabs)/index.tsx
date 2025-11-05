@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { ThemedView } from "@/components/themed-view";
 import { ThemedText } from "@/components/themed-text";
+import { getApiUrl } from "@/constants/api";
 
 interface Cliente {
   id_cliente: number;
@@ -42,7 +43,7 @@ export default function ClientesScreen() {
       setEditandoId(null);
 
       const response = await fetch(
-        `http://localhost:3000/clients/${editandoId}`,
+        `${getApiUrl()}/clients/${editandoId}`,
         {
           method: "PUT",
           headers: {
@@ -68,7 +69,7 @@ export default function ClientesScreen() {
       setClientes([...clientes, nuevoCliente]);
       Alert.alert("Éxito", "Cliente agregado correctamente");
 
-      const response = await fetch(`http://localhost:3000/clients`, {
+      const response = await fetch(`${getApiUrl()}/clients`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -91,7 +92,7 @@ export default function ClientesScreen() {
   // 🔹 Eliminar cliente
   const eliminarCliente = async (id: number) => {
     try {
-      const response = await fetch(`http://localhost:3000/clients/${id}`, {
+      const response = await fetch(`${getApiUrl()}/clients/${id}`, {
         method: "DELETE",
       });
 
@@ -123,7 +124,7 @@ export default function ClientesScreen() {
   useEffect(() => {
     const obtenerClientes = async () => {
       try {
-        const response = await fetch("http://localhost:3000/clients");
+        const response = await fetch(`${getApiUrl()}/clients`);
         if (!response.ok) {
           throw new Error("Error al obtener los clientes");
         }

@@ -1,0 +1,9 @@
+services:
+  - type: static
+    name: details-mobile-front
+    buildCommand: npm install && npm run build:web
+    publishPath: web-build
+    envVars:
+      - key: EXPO_PUBLIC_API_URL
+        sync: false
+

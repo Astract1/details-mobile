@@ -14,6 +14,7 @@ import {
 import { ThemedView } from "@/components/themed-view";
 import { ThemedText } from "@/components/themed-text";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { getApiUrl } from "@/constants/api";
 
 interface Producto {
   id_producto: number;
@@ -52,7 +53,7 @@ export default function ProductsScreen() {
 
     try {
       console.log(nuevoProducto);
-      const response = await fetch("http://localhost:3000/products", {
+      const response = await fetch(`${getApiUrl()}/products`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(nuevoProducto),
@@ -66,7 +67,7 @@ export default function ProductsScreen() {
 
   const eliminarProducto = async (id: number) => {
     try {
-      const response = await fetch(`http://localhost:3000/products/${id}`, {
+      const response = await fetch(`${getApiUrl()}/products/${id}`, {
         method: "DELETE",
       });
 
@@ -105,7 +106,7 @@ export default function ProductsScreen() {
 
     try {
       const response = await fetch(
-        `http://localhost:3000/products/${productoEdit.id_producto}`,
+        `${getApiUrl()}/products/${productoEdit.id_producto}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -127,7 +128,7 @@ export default function ProductsScreen() {
   const handleRefresh = async () => {
     try {
       console.log("aaaaaa");
-      const response = await fetch("http://localhost:3000/products");
+      const response = await fetch(`${getApiUrl()}/products`);
       const data = await response.json();
       setProductos(data);
 
@@ -141,7 +142,7 @@ export default function ProductsScreen() {
   useEffect(() => {
     const fetchProductos = async () => {
       try {
-        const response = await fetch("http://localhost:3000/products");
+        const response = await fetch(`${getApiUrl()}/products`);
         const data = await response.json();
         setProductos(data);
       } catch (error) {

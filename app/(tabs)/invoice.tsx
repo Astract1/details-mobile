@@ -12,6 +12,7 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Fonts } from "@/constants/theme";
+import { getApiUrl } from "@/constants/api";
 
 type Product = {
   id: number;
@@ -83,7 +84,7 @@ export default function InvoicesScreen() {
     console.log("PRODUCTOS", newProducts);
     let data: any;
     try {
-      const response = await fetch("http://localhost:3000/invoices", {
+      const response = await fetch(`${getApiUrl()}/invoices`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -115,7 +116,7 @@ export default function InvoicesScreen() {
 
     // Actualizar productos
     try {
-      const response = await fetch("http://localhost:3000/products", {
+      const response = await fetch(`${getApiUrl()}/products`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -137,7 +138,7 @@ export default function InvoicesScreen() {
   useEffect(() => {
     const fetchProductos = async () => {
       try {
-        const response = await fetch("http://localhost:3000/products/a");
+        const response = await fetch(`${getApiUrl()}/products/a`);
         const data = await response.json();
 
         console.log("PRODUCTOS", data);
@@ -160,7 +161,7 @@ export default function InvoicesScreen() {
   useEffect(() => {
     const fetchInvoices = async () => {
       try {
-        const response = await fetch("http://localhost:3000/invoices");
+        const response = await fetch(`${getApiUrl()}/invoices`);
         const data = await response.json();
 
         console.log("INVOICES", data);

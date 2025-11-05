@@ -7,12 +7,20 @@ import {
   Modal,
   TextInput,
   Alert,
+  SafeAreaView,
+  ScrollView,
+  Platform,
+  Text,
 } from "react-native";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { Fonts } from "@/constants/theme";
+import { Fonts, Colors } from "@/constants/theme";
 import { getApiUrl } from "@/constants/api";
+import { useResponsive } from "@/hooks/use-responsive";
+import { useThemeColor } from "@/hooks/use-theme-color";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { MaterialIcons } from "@expo/vector-icons";
 
 type Product = {
   id: number;
@@ -35,6 +43,18 @@ export default function InvoicesScreen() {
   const [productId, setProductId] = useState("");
   const [newProducts, setNewProducts] = useState<any[]>([]);
   const [availableProducts, setAvailableProducts] = useState<any[]>([]);
+  
+  const { isWeb, width } = useResponsive();
+  const colorScheme = useColorScheme() ?? "light"; // Forzar tema claro
+  const colors = Colors[colorScheme];
+  const backgroundColor = Colors[colorScheme].background;
+  const cardBackground = Colors[colorScheme].backgroundCard;
+  const borderColor = Colors[colorScheme].border;
+  const textColor = Colors[colorScheme].text;
+  const textSecondary = Colors[colorScheme].textSecondary;
+  
+  const maxContentWidth = isWeb && width > 768 ? 900 : undefined;
+  const horizontalPadding = isWeb && width > 768 ? 40 : 16;
 
   const generateRandomId = () => Math.floor(1000 + Math.random() * 9000);
 
@@ -177,51 +197,29 @@ export default function InvoicesScreen() {
   }, []);
 
   const renderInvoice = ({ item }: { item: Invoice }) => {
-    // const total = item.products.reduce(
-    //   (acc, p) => acc + p.price * p.quantity,
-    //   0
-    // );
-
     return (
-      <ThemedView style={styles.card}>
+      <View style={[styles.card, { backgroundColor: cardBackground, borderColor }]}>
         <View style={styles.cardHeader}>
-          <View style={styles.iconContainer}>
-            <IconSymbol
-              name="person.crop.circle.fill"
-              size={28}
-              color="#4A90E2"
-            />
+          <View style={[styles.iconContainer, { backgroundColor: colors.primary + "15" }]}>
+            <MaterialIcons name="receipt" size={24} color={colors.primary} />
           </View>
-          <View style={{ flex: 1 }}>
-            <ThemedText type="subtitle" style={{ fontFamily: Fonts.rounded }}>
-              Id: {item.id}
-            </ThemedText>
-            <ThemedText type="subtitle" style={{ fontFamily: Fonts.rounded }}>
-              {item.cliente}
-            </ThemedText>
-            <ThemedText style={{ color: "#6B7280", fontSize: 13 }}>
-              {item.products} productos
-            </ThemedText>
-          </View>
-          <ThemedText type="defaultSemiBold" style={styles.totalText}>
-            {/* ${total.toLocaleString()} */}${item.total}
-          </ThemedText>
-        </View>
-
-        {/* <View style={styles.divider} /> */}
-
-        {/* <View style={styles.productsContainer}>
-          {item.products.map((p) => (
-            <View key={p.id} style={styles.productRow}>
-              <ThemedText style={styles.productName}>{p.name}</ThemedText>
-              <ThemedText style={styles.productQty}>x{p.quantity}</ThemedText>
-              <ThemedText style={styles.productPrice}>
-                ${(p.price * p.quantity).toLocaleString()}
-              </ThemedText>
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={[styles.cardId, { color: textSecondary }]}>ID: {item.id}</Text>
+            <Text style={[styles.cardClient, { color: textColor }]}>{item.cliente}</Text>
+            <View style={styles.cardDetail}>
+              <MaterialIcons name="inventory-2" size={14} color={textSecondary} />
+              <Text style={[styles.cardProducts, { color: textSecondary }]}>
+                {item.products} {item.products === 1 ? "producto" : "productos"}
+              </Text>
             </View>
-          ))}
-        </View> */}
-      </ThemedView>
+          </View>
+          <View style={styles.totalContainer}>
+            <Text style={[styles.totalText, { color: colors.primary }]}>
+              ${parseFloat(item.total).toLocaleString()}
+            </Text>
+          </View>
+        </View>
+      </View>
     );
   };
 
@@ -231,28 +229,44 @@ export default function InvoicesScreen() {
   );
 
   return (
-    <ThemedView style={styles.container}>
-      <View style={styles.header}>
-        <ThemedText type="title" style={styles.title}>
-          Facturas
-        </ThemedText>
-        <TouchableOpacity
-          style={styles.createButton}
-          onPress={() => setModalVisible(true)}
-        >
-          <ThemedText style={styles.createButtonText}>
-            + Crear factura
-          </ThemedText>
-        </TouchableOpacity>
-      </View>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor }]}>
+      <View style={[styles.container, { paddingHorizontal: horizontalPadding }]}>
+        <View style={[styles.contentWrapper, maxContentWidth && { maxWidth: maxContentWidth, alignSelf: "center" }]}>
+          <View style={styles.header}>
+            <View>
+              <ThemedText type="title" style={styles.title}>
+                Facturas
+              </ThemedText>
+              <ThemedText type="default" style={[styles.subtitle, { color: textSecondary }]}>
+                Gestiona tus facturas y ventas
+              </ThemedText>
+            </View>
+            <TouchableOpacity
+              style={[styles.createButton, { backgroundColor: colors.primary }]}
+              onPress={() => setModalVisible(true)}
+              activeOpacity={0.8}
+            >
+              <MaterialIcons name="add" size={20} color="#fff" />
+              <Text style={styles.createButtonText}>Crear factura</Text>
+            </TouchableOpacity>
+          </View>
 
-      <FlatList
-        data={invoices}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={renderInvoice}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 80 }}
-      />
+          {invoices.length === 0 ? (
+            <View style={[styles.emptyContainer, { backgroundColor: cardBackground, borderColor }]}>
+              <MaterialIcons name="receipt-long" size={48} color={textSecondary} />
+              <Text style={[styles.emptyText, { color: textSecondary }]}>No hay facturas registradas.</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={invoices}
+              keyExtractor={(item) => item.id.toString()}
+              renderItem={renderInvoice}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 100 }}
+            />
+          )}
+        </View>
+      </View>
 
       {/* Modal de creación de factura */}
       <Modal
@@ -261,196 +275,417 @@ export default function InvoicesScreen() {
         transparent={true}
         onRequestClose={() => setModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <ThemedText style={styles.modalTitle}>
-              Crear nueva factura
-            </ThemedText>
-
-            <TextInput
-              style={styles.input}
-              placeholder="Nombre del cliente"
-              value={clientName}
-              onChangeText={setClientName}
-            />
-
-            <View style={styles.row}>
-              <TextInput
-                style={[styles.input, { flex: 1 }]}
-                placeholder="ID del producto"
-                value={productId}
-                onChangeText={setProductId}
-                keyboardType="numeric"
-              />
-              <TouchableOpacity
-                style={styles.addButton}
-                onPress={handleAddProduct}
-              >
-                <ThemedText style={styles.addButtonText}>Añadir</ThemedText>
-              </TouchableOpacity>
-            </View>
-
-            {newProducts.length > 0 && (
-              <>
-                <ThemedText style={styles.sectionTitle}>
-                  Productos agregados:
+        <View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
+          <ScrollView 
+            contentContainerStyle={styles.modalScrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={[styles.modalContainer, { backgroundColor: cardBackground, borderColor }]}>
+              <View style={styles.modalHeader}>
+                <ThemedText type="subtitle" style={styles.modalTitle}>
+                  Crear nueva factura
                 </ThemedText>
-                {newProducts.map((p) => (
-                  <View key={p.id} style={styles.productRow}>
-                    <ThemedText style={styles.productName}>{p.name}</ThemedText>
+                <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeButton}>
+                  <MaterialIcons name="close" size={24} color={textColor} />
+                </TouchableOpacity>
+              </View>
 
-                    <View style={styles.qtyButtons}>
-                      <TouchableOpacity
-                        onPress={() => changeQuantity(p.id, -1)}
-                        style={styles.qtyBtn}
-                      >
-                        <ThemedText>-</ThemedText>
-                      </TouchableOpacity>
-                      <ThemedText style={styles.productQty}>
-                        {+p.cantidadTotal}
-                      </ThemedText>
-                      <TouchableOpacity
-                        onPress={() => changeQuantity(p.id, 1)}
-                        style={styles.qtyBtn}
-                        disabled={p.cantidadTotal >= p.quantity}
-                      >
-                        <ThemedText>+</ThemedText>
-                      </TouchableOpacity>
-                    </View>
+              <View style={styles.inputContainer}>
+                <MaterialIcons name="person" size={20} color={colors.primary} style={styles.inputIcon} />
+                <TextInput
+                  style={[styles.input, { color: textColor, borderColor }]}
+                  placeholder="Nombre del cliente"
+                  value={clientName}
+                  onChangeText={setClientName}
+                  placeholderTextColor={textSecondary}
+                />
+              </View>
 
-                    <ThemedText style={styles.productPrice}>
-                      ${(p.price * p.quantity).toLocaleString()}
-                    </ThemedText>
+              <View style={styles.row}>
+                <View style={[styles.inputContainer, { flex: 1 }]}>
+                  <MaterialIcons name="tag" size={20} color={colors.primary} style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, { color: textColor, borderColor }]}
+                    placeholder="ID del producto"
+                    value={productId}
+                    onChangeText={setProductId}
+                    keyboardType="numeric"
+                    placeholderTextColor={textSecondary}
+                  />
+                </View>
+                <TouchableOpacity
+                  style={[styles.addButton, { backgroundColor: colors.primary }]}
+                  onPress={handleAddProduct}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.addButtonText}>Añadir</Text>
+                </TouchableOpacity>
+              </View>
+
+              {newProducts.length > 0 && (
+                <>
+                  <Text style={[styles.sectionTitle, { color: textColor }]}>
+                    Productos agregados:
+                  </Text>
+                  <View style={styles.productsList}>
+                    {newProducts.map((p) => (
+                      <View key={p.id} style={[styles.productRow, { backgroundColor: backgroundColor, borderColor }]}>
+                        <View style={styles.productInfo}>
+                          <Text style={[styles.productName, { color: textColor }]}>{p.name}</Text>
+                          <Text style={[styles.productPrice, { color: colors.success }]}>
+                            ${(p.price * p.cantidadTotal).toLocaleString()}
+                          </Text>
+                        </View>
+                        <View style={styles.qtyButtons}>
+                          <TouchableOpacity
+                            onPress={() => changeQuantity(p.id, -1)}
+                            style={[styles.qtyBtn, { backgroundColor: colors.border }]}
+                            activeOpacity={0.8}
+                          >
+                            <MaterialIcons name="remove" size={16} color={textColor} />
+                          </TouchableOpacity>
+                          <Text style={[styles.productQty, { color: textColor }]}>
+                            {+p.cantidadTotal}
+                          </Text>
+                          <TouchableOpacity
+                            onPress={() => changeQuantity(p.id, 1)}
+                            style={[styles.qtyBtn, { backgroundColor: colors.border }]}
+                            disabled={p.cantidadTotal >= p.quantity}
+                            activeOpacity={0.8}
+                          >
+                            <MaterialIcons name="add" size={16} color={textColor} />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ))}
                   </View>
-                ))}
 
-                <ThemedText style={styles.totalTextModal}>
-                  Total: ${totalNewInvoice.toLocaleString()}
-                </ThemedText>
-              </>
-            )}
+                  <View style={[styles.totalContainerModal, { backgroundColor: colors.primary + "15", borderColor: colors.primary }]}>
+                    <Text style={[styles.totalLabel, { color: textColor }]}>Total:</Text>
+                    <Text style={[styles.totalTextModal, { color: colors.primary }]}>
+                      ${totalNewInvoice.toLocaleString()}
+                    </Text>
+                  </View>
+                </>
+              )}
 
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalBtn, { backgroundColor: "#E5E7EB" }]}
-                onPress={() => setModalVisible(false)}
-              >
-                <ThemedText>Cancelar</ThemedText>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalBtn, { backgroundColor: "#4A90E2" }]}
-                onPress={handleSaveInvoice}
-              >
-                <ThemedText style={{ color: "#fff" }}>Guardar</ThemedText>
-              </TouchableOpacity>
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalBtn, { backgroundColor: colors.textSecondary }]}
+                  onPress={() => setModalVisible(false)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.modalBtnText, { color: textColor }]}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalBtn, { backgroundColor: colors.primary }]}
+                  onPress={handleSaveInvoice}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.modalBtnText}>Guardar</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          </ScrollView>
         </View>
       </Modal>
-    </ThemedView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 16, paddingTop: 10 },
+  safeArea: {
+    flex: 1,
+  },
+  container: {
+    flex: 1,
+    paddingTop: 20,
+  },
+  contentWrapper: {
+    flex: 1,
+    width: "100%",
+    ...Platform.select({
+      web: {
+        maxWidth: "100%",
+      },
+    }),
+  },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 10,
+    alignItems: "flex-start",
+    marginBottom: 24,
   },
-  title: { fontSize: 22, fontWeight: "bold" },
+  title: {
+    fontSize: 32,
+    fontWeight: "700",
+    marginBottom: 4,
+    letterSpacing: -0.5,
+  },
+  subtitle: {
+    fontSize: 16,
+    lineHeight: 22,
+  },
   createButton: {
-    backgroundColor: "#4A90E2",
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-  },
-  createButtonText: { color: "#fff", fontWeight: "bold" },
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-  cardHeader: { flexDirection: "row", alignItems: "center" },
-  iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: "#E0ECFF",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 10,
-  },
-  totalText: { color: "#4A90E2", fontSize: 16 },
-  divider: { height: 1, backgroundColor: "#E5E7EB", marginVertical: 10 },
-  productsContainer: { gap: 6 },
-  productRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginVertical: 4,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    gap: 8,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 4px 12px rgba(0, 122, 255, 0.3)",
+      },
+      default: {
+        shadowColor: "#007AFF",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 4,
+      },
+    }),
   },
-  productName: { flex: 1, fontSize: 14 },
-  productQty: { width: 40, textAlign: "center", color: "#6B7280" },
-  productPrice: { width: 80, textAlign: "right", color: "#111827" },
-
+  createButtonText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 16,
+  },
+  emptyContainer: {
+    borderRadius: 16,
+    padding: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderStyle: "dashed",
+    marginTop: 40,
+  },
+  emptyText: {
+    marginTop: 16,
+    fontSize: 16,
+    textAlign: "center",
+  },
+  card: {
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
+      },
+      default: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+        elevation: 3,
+      },
+    }),
+  },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  iconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cardId: {
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  cardClient: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 6,
+    letterSpacing: -0.3,
+  },
+  cardDetail: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  cardProducts: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  totalContainer: {
+    alignItems: "flex-end",
+  },
+  totalText: {
+    fontSize: 20,
+    fontWeight: "700",
+    letterSpacing: -0.3,
+  },
   // MODAL
   modalOverlay: {
     flex: 1,
     justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.4)",
     padding: 20,
+  },
+  modalScrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
   },
   modalContainer: {
-    backgroundColor: "#fff",
     borderRadius: 20,
-    padding: 20,
-  },
-  modalTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 10 },
-  input: {
+    padding: 24,
     borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 10,
+    maxWidth: 600,
+    width: "100%",
+    alignSelf: "center",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 8px 24px rgba(0, 0, 0, 0.2)",
+      },
+      default: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.2,
+        shadowRadius: 16,
+        elevation: 8,
+      },
+    }),
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    letterSpacing: -0.3,
+  },
+  closeButton: {
+    padding: 4,
+  },
+  inputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    backgroundColor: "transparent",
+    marginBottom: 12,
+  },
+  inputIcon: {
+    marginRight: 8,
+  },
+  input: {
+    flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 4,
+    fontSize: 16,
+    borderWidth: 0,
+  },
+  row: {
+    flexDirection: "row",
+    gap: 12,
+    alignItems: "center",
   },
   addButton: {
-    backgroundColor: "#4A90E2",
-    paddingHorizontal: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 12,
     justifyContent: "center",
-    borderRadius: 10,
-    height: 40,
+    alignItems: "center",
+    minWidth: 100,
   },
-  addButtonText: { color: "#fff", fontWeight: "bold" },
-  sectionTitle: { fontWeight: "bold", marginBottom: 6 },
-  qtyButtons: { flexDirection: "row", alignItems: "center", gap: 6 },
+  addButtonText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 16,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginTop: 8,
+    marginBottom: 12,
+    letterSpacing: -0.3,
+  },
+  productsList: {
+    gap: 8,
+    marginBottom: 16,
+  },
+  productRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  productInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  productName: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  productPrice: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  qtyButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
   qtyBtn: {
-    backgroundColor: "#E5E7EB",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    minWidth: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  productQty: {
+    fontSize: 16,
+    fontWeight: "600",
+    minWidth: 30,
+    textAlign: "center",
+  },
+  totalContainerModal: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  totalLabel: {
+    fontSize: 18,
+    fontWeight: "600",
   },
   totalTextModal: {
-    marginTop: 10,
-    fontWeight: "bold",
-    textAlign: "right",
-    color: "#4A90E2",
+    fontSize: 24,
+    fontWeight: "700",
+    letterSpacing: -0.3,
   },
   modalButtons: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 16,
+    gap: 12,
+    marginTop: 24,
   },
   modalBtn: {
     flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
     alignItems: "center",
-    padding: 10,
-    borderRadius: 10,
-    marginHorizontal: 5,
   },
-  row: { flexDirection: "row", gap: 8 },
+  modalBtnText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 16,
+  },
 });

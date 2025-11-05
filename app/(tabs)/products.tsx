@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import {
   View,
   TextInput,
@@ -10,11 +10,17 @@ import {
   TouchableOpacity,
   Modal,
   ScrollView,
+  SafeAreaView,
+  Platform,
 } from "react-native";
 import { ThemedView } from "@/components/themed-view";
 import { ThemedText } from "@/components/themed-text";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { getApiUrl } from "@/constants/api";
+import { useResponsive } from "@/hooks/use-responsive";
+import { useThemeColor } from "@/hooks/use-theme-color";
+import { Colors } from "@/constants/theme";
+import { useColorScheme } from "@/hooks/use-color-scheme";
 
 interface Producto {
   id_producto: number;
@@ -32,6 +38,18 @@ export default function ProductsScreen() {
   // Modal para edición
   const [modalVisible, setModalVisible] = useState(false);
   const [productoEdit, setProductoEdit] = useState<Producto | null>(null);
+  
+  const { isWeb, width } = useResponsive();
+  const colorScheme = useColorScheme() ?? "light"; // Forzar tema claro
+  const colors = Colors[colorScheme];
+  const backgroundColor = Colors[colorScheme].background;
+  const cardBackground = Colors[colorScheme].backgroundCard;
+  const borderColor = Colors[colorScheme].border;
+  const textColor = Colors[colorScheme].text;
+  const textSecondary = Colors[colorScheme].textSecondary;
+  
+  const maxContentWidth = isWeb && width > 768 ? 800 : undefined;
+  const horizontalPadding = isWeb && width > 768 ? 40 : 16;
 
   const agregarProducto = async () => {
     if (!nombre.trim() || !precio.trim()) {
@@ -157,118 +175,142 @@ export default function ProductsScreen() {
   console.log(productos);
 
   return (
-    <ScrollView
-      showsVerticalScrollIndicator={true}
-      contentContainerStyle={{ paddingBottom: 5 }}
-    >
-      <ThemedView style={styles.container}>
-        {/* Encabezado */}
-        {/* Encabezado con botón de refrescar */}
-        <View style={styles.header}>
-          <View style={styles.headerRow}>
-            <ThemedText type="title" style={styles.title}>
-              Gestión de Productos
+    <SafeAreaView style={[styles.safeArea, { backgroundColor }]}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingHorizontal: horizontalPadding },
+        ]}
+      >
+        <View style={[styles.container, maxContentWidth && { maxWidth: maxContentWidth, alignSelf: "center" }]}>
+          {/* Encabezado */}
+          <View style={styles.header}>
+            <View style={styles.headerRow}>
+              <ThemedText type="title" style={styles.title}>
+                Gestión de Productos
+              </ThemedText>
+              <TouchableOpacity
+                onPress={handleRefresh}
+                style={[styles.refreshButton, { backgroundColor: colors.primary + "15" }]}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="refresh" size={22} color={colors.primary} />
+              </TouchableOpacity>
+            </View>
+            <ThemedText type="default" style={[styles.subtitle, { color: textSecondary }]}>
+              Agrega y administra tus productos fácilmente
             </ThemedText>
-
-            <TouchableOpacity
-              onPress={handleRefresh}
-              style={styles.refreshButton}
-            >
-              <Ionicons name="refresh" size={24} color="#007AFF" />
-            </TouchableOpacity>
           </View>
 
-          <ThemedText type="default">
-            Agrega y administra tus productos fácilmente
-          </ThemedText>
-        </View>
-
         {/* Formulario de creación */}
-        <View style={styles.form}>
-          <TextInput
-            style={styles.input}
-            placeholder="Nombre del producto"
-            value={nombre}
-            onChangeText={setNombre}
-            placeholderTextColor="#777"
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Precio unitario"
-            value={precio}
-            onChangeText={setPrecio}
-            keyboardType="numeric"
-            placeholderTextColor="#777"
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Stock disponible"
-            value={stock}
-            onChangeText={setStock}
-            keyboardType="numeric"
-            placeholderTextColor="#777"
-          />
+        <View style={[styles.form, { backgroundColor: cardBackground, borderColor }]}>
+          <View style={styles.inputContainer}>
+            <MaterialIcons name="inventory-2" size={20} color={colors.primary} style={styles.inputIcon} />
+            <TextInput
+              style={[styles.input, { color: textColor, borderColor }]}
+              placeholder="Nombre del producto"
+              value={nombre}
+              onChangeText={setNombre}
+              placeholderTextColor={textSecondary}
+            />
+          </View>
+          <View style={styles.inputContainer}>
+            <MaterialIcons name="attach-money" size={20} color={colors.primary} style={styles.inputIcon} />
+            <TextInput
+              style={[styles.input, { color: textColor, borderColor }]}
+              placeholder="Precio unitario"
+              value={precio}
+              onChangeText={setPrecio}
+              keyboardType="numeric"
+              placeholderTextColor={textSecondary}
+            />
+          </View>
+          <View style={styles.inputContainer}>
+            <MaterialIcons name="warehouse" size={20} color={colors.primary} style={styles.inputIcon} />
+            <TextInput
+              style={[styles.input, { color: textColor, borderColor }]}
+              placeholder="Stock disponible"
+              value={stock}
+              onChangeText={setStock}
+              keyboardType="numeric"
+              placeholderTextColor={textSecondary}
+            />
+          </View>
 
-          <TouchableOpacity style={styles.button} onPress={agregarProducto}>
+          <TouchableOpacity 
+            style={[styles.button, { backgroundColor: colors.primary }]} 
+            onPress={agregarProducto}
+            activeOpacity={0.8}
+          >
             <Text style={styles.buttonText}>Agregar Producto</Text>
           </TouchableOpacity>
         </View>
 
         {/* Lista de productos */}
         <View style={{ marginTop: 24 }}>
-          <ThemedText type="subtitle" style={styles.subtitle}>
+          <ThemedText type="subtitle" style={styles.sectionTitle}>
             Lista de Productos
           </ThemedText>
 
           {productos.length === 0 ? (
-            <Text style={styles.emptyText}>No hay productos registrados.</Text>
+            <View style={[styles.emptyContainer, { backgroundColor: cardBackground, borderColor }]}>
+              <MaterialIcons name="inventory-2" size={48} color={textSecondary} />
+              <Text style={[styles.emptyText, { color: textSecondary }]}>No hay productos registrados.</Text>
+            </View>
           ) : (
-            <FlatList
-              data={productos}
-              keyExtractor={(item) => item.id_producto.toString()}
-              renderItem={({ item }) => (
-                <View style={styles.productCard}>
-                  <View style={styles.cardHeader}>
-                    <View>
-                      <IconSymbol name="cube.fill" size={22} color="#007AFF" />
-                      <Text style={styles.productName}>{item.nombre}</Text>
+            <View style={styles.listContainer}>
+              {productos.map((item) => (
+                <View key={item.id_producto} style={[styles.productCard, { backgroundColor: cardBackground, borderColor }]}>
+                  <View style={styles.cardContent}>
+                    <View style={styles.cardIcon}>
+                      <MaterialIcons name="inventory-2" size={24} color={colors.primary} />
                     </View>
-                    <View>
-                      <IconSymbol name="cube.fill" size={22} color="#007AFF" />
-                      <Text style={styles.productName}>
-                        Id: {item.id_producto}
-                      </Text>
+                    <View style={styles.cardInfo}>
+                      <Text style={[styles.productName, { color: textColor }]}>{item.nombre}</Text>
+                      <View style={styles.cardDetail}>
+                        <MaterialIcons name="tag" size={14} color={textSecondary} />
+                        <Text style={[styles.cardId, { color: textSecondary }]}>ID: {item.id_producto}</Text>
+                      </View>
+                      <View style={styles.cardDetailsRow}>
+                        <View style={styles.cardDetail}>
+                          <MaterialIcons name="attach-money" size={16} color={colors.success} />
+                          <Text style={[styles.cardPrice, { color: colors.success }]}>
+                            ${item.precio_unitario.toLocaleString()}
+                          </Text>
+                        </View>
+                        <View style={styles.cardDetail}>
+                          <MaterialIcons name="warehouse" size={16} color={colors.warning} />
+                          <Text style={[styles.cardStock, { color: colors.warning }]}>
+                            Stock: {item.stock}
+                          </Text>
+                        </View>
+                      </View>
                     </View>
                   </View>
-                  <Text style={styles.cardText}>
-                    💲 Precio: ${item.precio_unitario}
-                  </Text>
-                  <Text style={styles.cardText}>📦 Stock: {item.stock}</Text>
 
                   <View style={styles.actionRow}>
                     <TouchableOpacity
-                      style={[
-                        styles.actionButton,
-                        { backgroundColor: "#007AFF" },
-                      ]}
+                      style={[styles.actionButton, { backgroundColor: colors.primary }]}
                       onPress={() => abrirModalEdicion(item)}
+                      activeOpacity={0.8}
                     >
+                      <MaterialIcons name="edit" size={16} color="#fff" />
                       <Text style={styles.actionText}>Editar</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                      style={[
-                        styles.actionButton,
-                        { backgroundColor: "#FF3B30" },
-                      ]}
+                      style={[styles.actionButton, { backgroundColor: colors.error }]}
                       onPress={() => eliminarProducto(item.id_producto)}
+                      activeOpacity={0.8}
                     >
+                      <MaterialIcons name="delete" size={16} color="#fff" />
                       <Text style={styles.actionText}>Eliminar</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
-              )}
-            />
+              ))}
+            </View>
           )}
         </View>
 
@@ -279,218 +321,374 @@ export default function ProductsScreen() {
           transparent
           onRequestClose={cerrarModal}
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContainer}>
-              <Text style={styles.modalTitle}>Editar Producto</Text>
+          <View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
+            <View style={[styles.modalContainer, { backgroundColor: cardBackground, borderColor }]}>
+              <View style={styles.modalHeader}>
+                <ThemedText type="subtitle" style={styles.modalTitle}>Editar Producto</ThemedText>
+                <TouchableOpacity onPress={cerrarModal} style={styles.closeButton}>
+                  <MaterialIcons name="close" size={24} color={textColor} />
+                </TouchableOpacity>
+              </View>
 
-              <TextInput
-                style={styles.input}
-                placeholder="Nombre"
-                value={productoEdit?.nombre || ""}
-                onChangeText={(text) =>
-                  setProductoEdit((prev) =>
-                    prev ? { ...prev, nombre: text } : prev
-                  )
-                }
-              />
+              <View style={styles.inputContainer}>
+                <MaterialIcons name="inventory-2" size={20} color={colors.primary} style={styles.inputIcon} />
+                <TextInput
+                  style={[styles.input, { color: textColor, borderColor }]}
+                  placeholder="Nombre"
+                  value={productoEdit?.nombre || ""}
+                  onChangeText={(text) =>
+                    setProductoEdit((prev) =>
+                      prev ? { ...prev, nombre: text } : prev
+                    )
+                  }
+                  placeholderTextColor={textSecondary}
+                />
+              </View>
 
-              <TextInput
-                style={styles.input}
-                placeholder="Precio unitario"
-                value={
-                  productoEdit?.precio_unitario
-                    ? productoEdit.precio_unitario.toString()
-                    : ""
-                }
-                onChangeText={(text) =>
-                  setProductoEdit((prev) =>
-                    prev
-                      ? { ...prev, precio_unitario: parseFloat(text) || 0 }
-                      : prev
-                  )
-                }
-                keyboardType="numeric"
-              />
+              <View style={styles.inputContainer}>
+                <MaterialIcons name="attach-money" size={20} color={colors.primary} style={styles.inputIcon} />
+                <TextInput
+                  style={[styles.input, { color: textColor, borderColor }]}
+                  placeholder="Precio unitario"
+                  value={
+                    productoEdit?.precio_unitario
+                      ? productoEdit.precio_unitario.toString()
+                      : ""
+                  }
+                  onChangeText={(text) =>
+                    setProductoEdit((prev) =>
+                      prev
+                        ? { ...prev, precio_unitario: parseFloat(text) || 0 }
+                        : prev
+                    )
+                  }
+                  keyboardType="numeric"
+                  placeholderTextColor={textSecondary}
+                />
+              </View>
 
-              <TextInput
-                style={styles.input}
-                placeholder="Stock disponible"
-                value={productoEdit?.stock ? productoEdit.stock.toString() : ""}
-                onChangeText={(text) =>
-                  setProductoEdit((prev) =>
-                    prev ? { ...prev, stock: parseInt(text) || 0 } : prev
-                  )
-                }
-                keyboardType="numeric"
-              />
+              <View style={styles.inputContainer}>
+                <MaterialIcons name="warehouse" size={20} color={colors.primary} style={styles.inputIcon} />
+                <TextInput
+                  style={[styles.input, { color: textColor, borderColor }]}
+                  placeholder="Stock disponible"
+                  value={productoEdit?.stock ? productoEdit.stock.toString() : ""}
+                  onChangeText={(text) =>
+                    setProductoEdit((prev) =>
+                      prev ? { ...prev, stock: parseInt(text) || 0 } : prev
+                    )
+                  }
+                  keyboardType="numeric"
+                  placeholderTextColor={textSecondary}
+                />
+              </View>
 
               <View style={styles.modalButtons}>
                 <TouchableOpacity
-                  style={[styles.btn, { backgroundColor: "#007AFF" }]}
-                  onPress={guardarCambios}
+                  style={[styles.modalBtn, { backgroundColor: colors.textSecondary }]}
+                  onPress={cerrarModal}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.buttonText}>Guardar</Text>
+                  <Text style={[styles.modalBtnText, { color: textColor }]}>Cancelar</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.btn, { backgroundColor: "#777" }]}
-                  onPress={cerrarModal}
+                  style={[styles.modalBtn, { backgroundColor: colors.primary }]}
+                  onPress={guardarCambios}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.buttonText}>Cancelar</Text>
+                  <Text style={styles.modalBtnText}>Guardar</Text>
                 </TouchableOpacity>
               </View>
             </View>
           </View>
         </Modal>
-      </ThemedView>
-    </ScrollView>
+      </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    padding: 20,
-    backgroundColor: "#F6F8FA",
+  safeArea: {
     flex: 1,
+    ...Platform.select({
+      web: {
+        minHeight: "100vh",
+      },
+    }),
+  },
+  scrollContent: {
+    paddingTop: 20,
+    paddingBottom: 100,
+    ...Platform.select({
+      web: {
+        width: "100%",
+      },
+    }),
+  },
+  container: {
+    flex: 1,
+    width: "100%",
+    ...Platform.select({
+      web: {
+        maxWidth: "100%",
+      },
+    }),
   },
   header: {
-    marginBottom: 10,
+    marginBottom: 24,
   },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    marginBottom: 8,
   },
-
   refreshButton: {
-    backgroundColor: "#E6F0FF",
-    padding: 8,
+    padding: 10,
     borderRadius: 50,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+      },
+      default: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+      },
+    }),
   },
   title: {
-    fontSize: 22,
-    fontWeight: "bold",
-    marginBottom: 4,
+    fontSize: 32,
+    fontWeight: "700",
+    letterSpacing: -0.5,
+  },
+  subtitle: {
+    fontSize: 16,
+    lineHeight: 22,
   },
   form: {
     marginTop: 10,
-    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    gap: 16,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)",
+      },
+      default: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+        elevation: 4,
+      },
+    }),
+  },
+  inputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1.5,
     borderRadius: 12,
-    padding: 16,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 3,
-    gap: 10,
+    paddingHorizontal: 12,
+    backgroundColor: "transparent",
+  },
+  inputIcon: {
+    marginRight: 8,
   },
   input: {
-    borderWidth: 1,
-    borderColor: "#E0E0E0",
-    borderRadius: 10,
-    padding: 12,
-    backgroundColor: "#FAFAFA",
+    flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 4,
     fontSize: 16,
+    borderWidth: 0,
   },
   button: {
-    backgroundColor: "#007AFF",
-    paddingVertical: 12,
-    borderRadius: 10,
+    paddingVertical: 16,
+    borderRadius: 12,
     alignItems: "center",
-    marginTop: 6,
+    marginTop: 8,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 4px 12px rgba(0, 122, 255, 0.3)",
+      },
+      default: {
+        shadowColor: "#007AFF",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 4,
+      },
+    }),
   },
   buttonText: {
     color: "#fff",
     fontWeight: "600",
     fontSize: 16,
+    letterSpacing: 0.3,
   },
-  subtitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 8,
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: 16,
+    letterSpacing: -0.3,
+  },
+  emptyContainer: {
+    borderRadius: 16,
+    padding: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderStyle: "dashed",
   },
   emptyText: {
-    color: "#777",
+    marginTop: 16,
+    fontSize: 16,
     textAlign: "center",
-    marginTop: 10,
+  },
+  listContainer: {
+    gap: 12,
   },
   productCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
-    elevation: 2,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
+      },
+      default: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+        elevation: 3,
+      },
+    }),
   },
-  cardHeader: {
+  cardContent: {
     flexDirection: "row",
+    marginBottom: 16,
+  },
+  cardIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: "rgba(0, 122, 255, 0.1)",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
-    marginBottom: 4,
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  cardInfo: {
+    flex: 1,
   },
   productName: {
-    fontSize: 17,
-    fontWeight: "bold",
-    color: "#222",
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 6,
+    letterSpacing: -0.3,
   },
-  cardText: {
-    color: "#555",
+  cardDetail: {
+    flexDirection: "row",
+    alignItems: "center",
     marginTop: 4,
+    gap: 6,
+  },
+  cardDetailsRow: {
+    flexDirection: "row",
+    gap: 16,
+    marginTop: 8,
+  },
+  cardId: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  cardPrice: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  cardStock: {
+    fontSize: 14,
+    fontWeight: "500",
   },
   actionRow: {
     flexDirection: "row",
-    justifyContent: "space-around",
-    marginTop: 10,
+    gap: 8,
+    marginTop: 4,
   },
   actionButton: {
-    flex: 1,
-    marginHorizontal: 6,
-    borderRadius: 8,
+    flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 8,
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    gap: 6,
+    justifyContent: "center",
   },
   actionText: {
     color: "#fff",
     fontWeight: "600",
+    fontSize: 14,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.3)",
     justifyContent: "center",
     alignItems: "center",
+    padding: 20,
   },
   modalContainer: {
-    backgroundColor: "#fff",
-    width: "85%",
-    borderRadius: 12,
-    padding: 20,
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 5,
+    width: "100%",
+    maxWidth: 500,
+    borderRadius: 20,
+    padding: 24,
+    borderWidth: 1,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 8px 24px rgba(0, 0, 0, 0.2)",
+      },
+      default: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.2,
+        shadowRadius: 16,
+        elevation: 8,
+      },
+    }),
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 10,
-    textAlign: "center",
+    fontSize: 22,
+    fontWeight: "700",
+    letterSpacing: -0.3,
+  },
+  closeButton: {
+    padding: 4,
   },
   modalButtons: {
     flexDirection: "row",
-    justifyContent: "space-around",
-    marginTop: 10,
+    gap: 12,
+    marginTop: 24,
   },
-  btn: {
+  modalBtn: {
     flex: 1,
-    marginHorizontal: 6,
-    borderRadius: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
     alignItems: "center",
-    paddingVertical: 10,
+  },
+  modalBtnText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 16,
   },
 });

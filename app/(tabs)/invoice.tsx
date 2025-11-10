@@ -34,11 +34,31 @@ type Invoice = {
   cliente: string;
   products: number;
   total: string;
+  fecha?: string;
+};
+
+type InvoiceProduct = {
+  id: number;
+  name: string;
+  quantity: number;
+  price: number;
+  total: number;
+};
+
+type InvoiceDetails = {
+  id: number;
+  cliente: string;
+  fecha: string;
+  total: string;
+  products: InvoiceProduct[];
 };
 
 export default function InvoicesScreen() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<InvoiceDetails | null>(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
   const [clientName, setClientName] = useState("");
   const [productId, setProductId] = useState("");
   const [newProducts, setNewProducts] = useState<any[]>([]);
@@ -196,30 +216,53 @@ export default function InvoicesScreen() {
     fetchInvoices();
   }, []);
 
+  const handleInvoicePress = async (invoice: Invoice) => {
+    setLoadingDetails(true);
+    setDetailModalVisible(true);
+    
+    try {
+      const response = await fetch(`${getApiUrl()}/invoices/${invoice.id}`);
+      const data = await response.json();
+      
+      setSelectedInvoice(data);
+    } catch (error) {
+      console.error("Error al cargar detalles de la factura:", error);
+      Alert.alert("Error", "No se pudieron cargar los detalles de la factura");
+      setDetailModalVisible(false);
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
+
   const renderInvoice = ({ item }: { item: Invoice }) => {
     return (
-      <View style={[styles.card, { backgroundColor: cardBackground, borderColor }]}>
-        <View style={styles.cardHeader}>
-          <View style={[styles.iconContainer, { backgroundColor: colors.primary + "15" }]}>
-            <MaterialIcons name="receipt" size={24} color={colors.primary} />
-          </View>
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={[styles.cardId, { color: textSecondary }]}>ID: {item.id}</Text>
-            <Text style={[styles.cardClient, { color: textColor }]}>{item.cliente}</Text>
-            <View style={styles.cardDetail}>
-              <MaterialIcons name="inventory-2" size={14} color={textSecondary} />
-              <Text style={[styles.cardProducts, { color: textSecondary }]}>
-                {item.products} {item.products === 1 ? "producto" : "productos"}
+      <TouchableOpacity
+        onPress={() => handleInvoicePress(item)}
+        activeOpacity={0.7}
+      >
+        <View style={[styles.card, { backgroundColor: cardBackground, borderColor }]}>
+          <View style={styles.cardHeader}>
+            <View style={[styles.iconContainer, { backgroundColor: colors.primary + "15" }]}>
+              <MaterialIcons name="receipt" size={24} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={[styles.cardId, { color: textSecondary }]}>ID: {item.id}</Text>
+              <Text style={[styles.cardClient, { color: textColor }]}>{item.cliente}</Text>
+              <View style={styles.cardDetail}>
+                <MaterialIcons name="inventory-2" size={14} color={textSecondary} />
+                <Text style={[styles.cardProducts, { color: textSecondary }]}>
+                  {item.products} {item.products === 1 ? "producto" : "productos"}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.totalContainer}>
+              <Text style={[styles.totalText, { color: colors.primary }]}>
+                ${parseFloat(item.total).toLocaleString()}
               </Text>
             </View>
           </View>
-          <View style={styles.totalContainer}>
-            <Text style={[styles.totalText, { color: colors.primary }]}>
-              ${parseFloat(item.total).toLocaleString()}
-            </Text>
-          </View>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -267,6 +310,133 @@ export default function InvoicesScreen() {
           )}
         </View>
       </View>
+
+      {/* Modal de detalles de factura */}
+      <Modal
+        visible={detailModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setDetailModalVisible(false);
+          setSelectedInvoice(null);
+        }}
+      >
+        <View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
+          <ScrollView 
+            contentContainerStyle={styles.modalScrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={[styles.modalContainer, { backgroundColor: cardBackground, borderColor }]}>
+              <View style={styles.modalHeader}>
+                <ThemedText type="subtitle" style={styles.modalTitle}>
+                  Detalles de la factura
+                </ThemedText>
+                <TouchableOpacity 
+                  onPress={() => {
+                    setDetailModalVisible(false);
+                    setSelectedInvoice(null);
+                  }} 
+                  style={styles.closeButton}
+                >
+                  <MaterialIcons name="close" size={24} color={textColor} />
+                </TouchableOpacity>
+              </View>
+
+              {loadingDetails ? (
+                <View style={styles.loadingContainer}>
+                  <Text style={[styles.loadingText, { color: textSecondary }]}>Cargando...</Text>
+                </View>
+              ) : selectedInvoice ? (
+                <>
+                  <View style={[styles.invoiceInfoContainer, { backgroundColor: backgroundColor, borderColor }]}>
+                    <View style={styles.infoRow}>
+                      <View style={styles.infoLabelContainer}>
+                        <MaterialIcons name="receipt" size={18} color={colors.primary} />
+                        <Text style={[styles.infoLabel, { color: textSecondary }]}>ID Factura:</Text>
+                      </View>
+                      <Text style={[styles.infoValue, { color: textColor }]}>#{selectedInvoice.id}</Text>
+                    </View>
+                    <View style={styles.infoRow}>
+                      <View style={styles.infoLabelContainer}>
+                        <MaterialIcons name="person" size={18} color={colors.primary} />
+                        <Text style={[styles.infoLabel, { color: textSecondary }]}>Cliente:</Text>
+                      </View>
+                      <Text style={[styles.infoValue, { color: textColor }]}>{selectedInvoice.cliente}</Text>
+                    </View>
+                    <View style={styles.infoRow}>
+                      <View style={styles.infoLabelContainer}>
+                        <MaterialIcons name="calendar-today" size={18} color={colors.primary} />
+                        <Text style={[styles.infoLabel, { color: textSecondary }]}>Fecha:</Text>
+                      </View>
+                      <Text style={[styles.infoValue, { color: textColor }]}>
+                        {selectedInvoice.fecha ? new Date(selectedInvoice.fecha).toLocaleDateString('es-ES', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        }) : 'N/A'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {selectedInvoice.products && selectedInvoice.products.length > 0 && (
+                    <>
+                      <Text style={[styles.sectionTitle, { color: textColor, marginTop: 24 }]}>
+                        Productos:
+                      </Text>
+                      <View style={styles.productsList}>
+                        {selectedInvoice.products.map((product) => (
+                          <View key={product.id} style={[styles.productRow, { backgroundColor: backgroundColor, borderColor }]}>
+                            <View style={styles.productInfo}>
+                              <Text style={[styles.productName, { color: textColor }]}>{product.name}</Text>
+                              <View style={styles.productDetails}>
+                                <Text style={[styles.productDetail, { color: textSecondary }]}>
+                                  Cantidad: {product.quantity}
+                                </Text>
+                                <Text style={[styles.productDetail, { color: textSecondary }]}>
+                                  Precio unitario: ${parseFloat(product.price.toString()).toLocaleString()}
+                                </Text>
+                              </View>
+                            </View>
+                            <View style={styles.productTotalContainer}>
+                              <Text style={[styles.productTotal, { color: colors.primary }]}>
+                                ${parseFloat(product.total.toString()).toLocaleString()}
+                              </Text>
+                            </View>
+                          </View>
+                        ))}
+                      </View>
+                    </>
+                  )}
+
+                  <View style={[styles.totalContainerModal, { backgroundColor: colors.primary + "15", borderColor: colors.primary, marginTop: 16 }]}>
+                    <Text style={[styles.totalLabel, { color: textColor }]}>Total:</Text>
+                    <Text style={[styles.totalTextModal, { color: colors.primary }]}>
+                      ${parseFloat(selectedInvoice.total).toLocaleString()}
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={[styles.modalBtn, { backgroundColor: colors.primary, marginTop: 24 }]}
+                    onPress={() => {
+                      setDetailModalVisible(false);
+                      setSelectedInvoice(null);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.modalBtnText}>Cerrar</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <View style={styles.loadingContainer}>
+                  <Text style={[styles.loadingText, { color: textSecondary }]}>No se encontraron detalles</Text>
+                </View>
+              )}
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
 
       {/* Modal de creación de factura */}
       <Modal
@@ -687,5 +857,58 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "600",
     fontSize: 16,
+  },
+  // Estilos para modal de detalles
+  invoiceInfoContainer: {
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    marginBottom: 16,
+    gap: 12,
+  },
+  infoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  infoLabelContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flex: 1,
+  },
+  infoLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  infoValue: {
+    fontSize: 16,
+    fontWeight: "600",
+    flex: 1,
+    textAlign: "right",
+  },
+  loadingContainer: {
+    padding: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  loadingText: {
+    fontSize: 16,
+  },
+  productDetails: {
+    marginTop: 4,
+    gap: 4,
+  },
+  productDetail: {
+    fontSize: 13,
+  },
+  productTotalContainer: {
+    alignItems: "flex-end",
+    justifyContent: "center",
+  },
+  productTotal: {
+    fontSize: 18,
+    fontWeight: "700",
   },
 });

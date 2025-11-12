@@ -1,26 +1,23 @@
+import { ThemedText } from "@/components/themed-text";
+import { getApiUrl } from "@/constants/api";
+import { Colors } from "@/constants/theme";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { useResponsive } from "@/hooks/use-responsive";
+import { MaterialIcons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
 import {
-  StyleSheet,
-  FlatList,
-  View,
-  TouchableOpacity,
-  Modal,
-  TextInput,
   Alert,
+  FlatList,
+  Modal,
+  Platform,
   SafeAreaView,
   ScrollView,
-  Platform,
+  StyleSheet,
   Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
-import { IconSymbol } from "@/components/ui/icon-symbol";
-import { Fonts, Colors } from "@/constants/theme";
-import { getApiUrl } from "@/constants/api";
-import { useResponsive } from "@/hooks/use-responsive";
-import { useThemeColor } from "@/hooks/use-theme-color";
-import { useColorScheme } from "@/hooks/use-color-scheme";
-import { MaterialIcons } from "@expo/vector-icons";
 
 type Product = {
   id: number;
@@ -137,7 +134,18 @@ export default function InvoicesScreen() {
         }),
       });
 
+      if (!response.ok) {
+        const errorData = await response.json();
+        Alert.alert("Error", errorData.message || "Error al crear la factura");
+        return;
+      }
+
       data = await response.json();
+
+      if (!data.factura || !data.factura.id_factura) {
+        Alert.alert("Error", "La respuesta del servidor no contiene la información esperada");
+        return;
+      }
 
       const newInvoice: any = {
         id: data.factura.id_factura,
@@ -148,30 +156,36 @@ export default function InvoicesScreen() {
       setInvoices((prev) => [...prev, newInvoice]);
 
       console.log("RESPUESTA CREAR FACTURA:", data);
+
+      // Actualizar productos
+      try {
+        const response = await fetch(`${getApiUrl()}/products`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            cliente: clientName.trim(),
+            total,
+            newProducts,
+            id_factura: data.factura.id_factura,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.log("ERROR ACTUALIZANDO PRODUCTOS", errorData);
+          Alert.alert("Advertencia", "La factura se creó pero hubo un error al actualizar los productos");
+        } else {
+          console.log("RESPUESTA ACTUALIZAR PRODUCTOS", response);
+        }
+      } catch (error) {
+        console.log("ERROR ACTUALIZANDO PRODUCTOS", error);
+        Alert.alert("Advertencia", "La factura se creó pero hubo un error al actualizar los productos");
+      }
     } catch (error) {
       console.log("ERROR CREANDO FACTURA", error);
-    }
-
-    console.log("data.factura.id_factura", data.factura.id_factura);
-
-    // Actualizar productos
-    try {
-      const response = await fetch(`${getApiUrl()}/products`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          cliente: clientName.trim(),
-          total,
-          newProducts,
-          id_factura: data.factura.id_factura,
-        }),
-      });
-
-      console.log("RESPUESTA ACTUALIZAR PRODUCTOS", response);
-    } catch (error) {
-      console.log("ERROR ACTUALIZANDO PRODUCTOS", error);
+      Alert.alert("Error", "No se pudo crear la factura. Por favor, intente nuevamente.");
     }
   };
 
@@ -222,9 +236,23 @@ export default function InvoicesScreen() {
     
     try {
       const response = await fetch(`${getApiUrl()}/invoices/${invoice.id}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        Alert.alert("Error", errorData.message || "No se pudieron cargar los detalles de la factura");
+        setDetailModalVisible(false);
+        return;
+      }
+      
       const data = await response.json();
       
-      setSelectedInvoice(data);
+      // El backend devuelve { invoice: {...}, ... }, necesitamos extraer el invoice
+      if (data.invoice) {
+        setSelectedInvoice(data.invoice);
+      } else {
+        // Fallback: si no viene en formato esperado, usar data directamente
+        setSelectedInvoice(data);
+      }
     } catch (error) {
       console.error("Error al cargar detalles de la factura:", error);
       Alert.alert("Error", "No se pudieron cargar los detalles de la factura");
@@ -354,14 +382,18 @@ export default function InvoicesScreen() {
                         <MaterialIcons name="receipt" size={18} color={colors.primary} />
                         <Text style={[styles.infoLabel, { color: textSecondary }]}>ID Factura:</Text>
                       </View>
-                      <Text style={[styles.infoValue, { color: textColor }]}>#{selectedInvoice.id}</Text>
+                      <Text style={[styles.infoValue, { color: textColor }]}>
+                        #{selectedInvoice.id || 'N/A'}
+                      </Text>
                     </View>
                     <View style={styles.infoRow}>
                       <View style={styles.infoLabelContainer}>
                         <MaterialIcons name="person" size={18} color={colors.primary} />
                         <Text style={[styles.infoLabel, { color: textSecondary }]}>Cliente:</Text>
                       </View>
-                      <Text style={[styles.infoValue, { color: textColor }]}>{selectedInvoice.cliente}</Text>
+                      <Text style={[styles.infoValue, { color: textColor }]}>
+                        {selectedInvoice.cliente || 'N/A'}
+                      </Text>
                     </View>
                     <View style={styles.infoRow}>
                       <View style={styles.infoLabelContainer}>
@@ -413,7 +445,7 @@ export default function InvoicesScreen() {
                   <View style={[styles.totalContainerModal, { backgroundColor: colors.primary + "15", borderColor: colors.primary, marginTop: 16 }]}>
                     <Text style={[styles.totalLabel, { color: textColor }]}>Total:</Text>
                     <Text style={[styles.totalTextModal, { color: colors.primary }]}>
-                      ${parseFloat(selectedInvoice.total).toLocaleString()}
+                      ${selectedInvoice.total ? parseFloat(selectedInvoice.total.toString()).toLocaleString() : '0.00'}
                     </Text>
                   </View>
 

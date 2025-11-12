@@ -60,6 +60,17 @@ export default function TabLayout() {
 
       {/* TABS SOLO PARA WEB - Reportes y Consultas */}
       <Tabs.Screen
+        name="dashboard"
+        options={{
+          title: "Dashboard",
+          href: !isWeb ? null : undefined,
+          tabBarIcon: ({ color, size }) => (
+            <MaterialIcons name="dashboard" size={28} color={color} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
         name="movements"
         options={{
           title: "Movimientos",

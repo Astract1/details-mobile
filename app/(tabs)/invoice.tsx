@@ -6,7 +6,7 @@ import { useResponsive } from "@/hooks/use-responsive";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
 import {
-  Alert,
+  ActivityIndicator,
   FlatList,
   Modal,
   Platform,
@@ -18,6 +18,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useToast } from "@/components/toast/ToastContext";
+import { DatePicker } from "@/components/DatePicker";
 
 type Product = {
   id: number;
@@ -61,12 +63,15 @@ export default function InvoicesScreen() {
   const [productId, setProductId] = useState("");
   const [newProducts, setNewProducts] = useState<any[]>([]);
   const [availableProducts, setAvailableProducts] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingList, setIsLoadingList] = useState(true);
 
   // Estados de filtros (solo para web)
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [clientFilter, setClientFilter] = useState("");
 
+  const toast = useToast();
   const { isWeb, width } = useResponsive();
   const colorScheme = useColorScheme() ?? "light"; // Forzar tema claro
   const colors = Colors[colorScheme];
@@ -84,12 +89,19 @@ export default function InvoicesScreen() {
   const handleAddProduct = () => {
     const id = Number(productId);
     const found = availableProducts.find((p) => p.id === id);
-    if (!found) return alert("Producto no encontrado");
+    if (!found) {
+      toast.error("Producto no encontrado");
+      return;
+    }
     const alreadyAdded = newProducts.find((p) => p.id === id);
-    if (alreadyAdded) return alert("Este producto ya fue agregado");
+    if (alreadyAdded) {
+      toast.warning("Este producto ya fue agregado");
+      return;
+    }
 
     setNewProducts([...newProducts, { ...found, cantidadTotal: 1 }]);
     setProductId("");
+    toast.success("Producto agregado");
   };
 
   const changeQuantity = (id: number, delta: number) => {
@@ -104,9 +116,14 @@ export default function InvoicesScreen() {
   };
 
   const handleSaveInvoice = async () => {
-    if (!clientName.trim()) return alert("Debe ingresar el nombre del cliente");
-    if (newProducts.length === 0)
-      return alert("Debe agregar al menos un producto");
+    if (!clientName.trim()) {
+      toast.error("Debe ingresar el nombre del cliente");
+      return;
+    }
+    if (newProducts.length === 0) {
+      toast.error("Debe agregar al menos un producto");
+      return;
+    }
 
     const total = newProducts.reduce(
       (acc, p) => acc + (parseFloat(p.price) * parseInt(p.cantidadTotal)),
@@ -114,6 +131,11 @@ export default function InvoicesScreen() {
     );
 
     console.log("newProducts", newProducts);
+
+    setIsLoading(true);
+
+    const clientNameToSave = clientName;
+    const productsToSave = [...newProducts];
 
     setModalVisible(false);
     setClientName("");
@@ -124,7 +146,7 @@ export default function InvoicesScreen() {
 
     console.log(total, fecha);
 
-    console.log("PRODUCTOS", newProducts);
+    console.log("PRODUCTOS", productsToSave);
     let data: any;
     try {
       const response = await fetch(`${getApiUrl()}/invoices`, {
@@ -133,23 +155,23 @@ export default function InvoicesScreen() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          cliente: clientName,
+          cliente: clientNameToSave,
           fecha,
           total,
-          products: newProducts.length,
+          products: productsToSave.length,
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        Alert.alert("Error", errorData.message || "Error al crear la factura");
+        toast.error(errorData.message || "Error al crear la factura");
         return;
       }
 
       data = await response.json();
 
       if (!data.factura || !data.factura.id_factura) {
-        Alert.alert("Error", "La respuesta del servidor no contiene la información esperada");
+        toast.error("La respuesta del servidor no contiene la información esperada");
         return;
       }
 
@@ -160,7 +182,7 @@ export default function InvoicesScreen() {
       setFilteredInvoices(updatedInvoices);
 
       console.log("RESPUESTA CREAR FACTURA:", data);
-      Alert.alert("Éxito", "Factura creada correctamente");
+      toast.success("Factura creada correctamente");
 
       // Actualizar productos
       try {
@@ -170,9 +192,9 @@ export default function InvoicesScreen() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            cliente: clientName.trim(),
+            cliente: clientNameToSave.trim(),
             total,
-            newProducts,
+            newProducts: productsToSave,
             id_factura: data.factura.id_factura,
           }),
         });
@@ -180,17 +202,19 @@ export default function InvoicesScreen() {
         if (!response.ok) {
           const errorData = await response.json();
           console.log("ERROR ACTUALIZANDO PRODUCTOS", errorData);
-          Alert.alert("Advertencia", "La factura se creó pero hubo un error al actualizar los productos");
+          toast.warning("La factura se creó pero hubo un error al actualizar los productos");
         } else {
           console.log("RESPUESTA ACTUALIZAR PRODUCTOS", response);
         }
       } catch (error) {
         console.log("ERROR ACTUALIZANDO PRODUCTOS", error);
-        Alert.alert("Advertencia", "La factura se creó pero hubo un error al actualizar los productos");
+        toast.warning("La factura se creó pero hubo un error al actualizar los productos");
       }
     } catch (error) {
       console.log("ERROR CREANDO FACTURA", error);
-      Alert.alert("Error", "No se pudo crear la factura. Por favor, intente nuevamente.");
+      toast.error("No se pudo crear la factura. Por favor, intente nuevamente.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -210,7 +234,7 @@ export default function InvoicesScreen() {
         setAvailableProducts(products);
       } catch (error) {
         console.error("Error al cargar productos:", error);
-        Alert.alert("Error", "No se pudieron cargar los productos");
+        toast.error("No se pudieron cargar los productos");
       }
     };
 
@@ -219,6 +243,7 @@ export default function InvoicesScreen() {
 
   useEffect(() => {
     const fetchInvoices = async () => {
+      setIsLoadingList(true);
       try {
         const response = await fetch(`${getApiUrl()}/invoices`);
         const data = await response.json();
@@ -229,7 +254,9 @@ export default function InvoicesScreen() {
         setFilteredInvoices(data);
       } catch (error) {
         console.error("Error al cargar facturas:", error);
-        Alert.alert("Error", "No se pudieron cargar las facturas");
+        toast.error("No se pudieron cargar las facturas");
+      } finally {
+        setIsLoadingList(false);
       }
     };
 
@@ -280,19 +307,19 @@ export default function InvoicesScreen() {
   const handleInvoicePress = async (invoice: Invoice) => {
     setLoadingDetails(true);
     setDetailModalVisible(true);
-    
+
     try {
       const response = await fetch(`${getApiUrl()}/invoices/${invoice.id}`);
-      
+
       if (!response.ok) {
         const errorData = await response.json();
-        Alert.alert("Error", errorData.message || "No se pudieron cargar los detalles de la factura");
+        toast.error(errorData.message || "No se pudieron cargar los detalles de la factura");
         setDetailModalVisible(false);
         return;
       }
-      
+
       const data = await response.json();
-      
+
       // El backend devuelve { invoice: {...}, ... }, necesitamos extraer el invoice
       if (data.invoice) {
         setSelectedInvoice(data.invoice);
@@ -302,7 +329,7 @@ export default function InvoicesScreen() {
       }
     } catch (error) {
       console.error("Error al cargar detalles de la factura:", error);
-      Alert.alert("Error", "No se pudieron cargar los detalles de la factura");
+      toast.error("No se pudieron cargar los detalles de la factura");
       setDetailModalVisible(false);
     } finally {
       setLoadingDetails(false);
@@ -388,24 +415,18 @@ export default function InvoicesScreen() {
               </View>
 
               <View style={styles.filtersRow}>
-                <View style={[styles.filterInput, { flex: 1 }]}>
-                  <MaterialIcons name="event" size={20} color={colors.primary} style={styles.inputIcon} />
-                  <TextInput
-                    style={[styles.input, { color: textColor, borderColor }]}
-                    placeholder="Fecha inicio (YYYY-MM-DD)"
+                <View style={{ flex: 1 }}>
+                  <DatePicker
                     value={startDate}
-                    onChangeText={setStartDate}
-                    placeholderTextColor={textSecondary}
+                    onChange={setStartDate}
+                    placeholder="Fecha inicio"
                   />
                 </View>
-                <View style={[styles.filterInput, { flex: 1 }]}>
-                  <MaterialIcons name="event" size={20} color={colors.primary} style={styles.inputIcon} />
-                  <TextInput
-                    style={[styles.input, { color: textColor, borderColor }]}
-                    placeholder="Fecha fin (YYYY-MM-DD)"
+                <View style={{ flex: 1 }}>
+                  <DatePicker
                     value={endDate}
-                    onChangeText={setEndDate}
-                    placeholderTextColor={textSecondary}
+                    onChange={setEndDate}
+                    placeholder="Fecha fin"
                   />
                 </View>
               </View>
@@ -417,19 +438,62 @@ export default function InvoicesScreen() {
                     Mostrando {filteredInvoices.length} de {invoices.length} facturas
                   </Text>
                 </View>
-                <TouchableOpacity
-                  style={[styles.filterBtn, { backgroundColor: colors.error }]}
-                  onPress={clearFilters}
-                  activeOpacity={0.8}
-                >
-                  <MaterialIcons name="clear" size={18} color="#fff" />
-                  <Text style={styles.filterBtnText}>Limpiar Filtros</Text>
-                </TouchableOpacity>
+                <View style={styles.filterActionsRow}>
+                  <TouchableOpacity
+                    style={[styles.exportBtn, { backgroundColor: colors.success }]}
+                    onPress={() => {
+                      const params = new URLSearchParams();
+                      if (startDate) params.append('start_date', startDate);
+                      if (endDate) params.append('end_date', endDate);
+                      if (clientFilter) params.append('client', clientFilter);
+                      const url = `${getApiUrl()}/export/invoices/excel?${params.toString()}`;
+                      if (Platform.OS === 'web') {
+                        window.open(url, '_blank');
+                      }
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialIcons name="file-download" size={18} color="#fff" />
+                    <Text style={styles.exportBtnText}>Excel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.exportBtn, { backgroundColor: colors.error }]}
+                    onPress={() => {
+                      const params = new URLSearchParams();
+                      if (startDate) params.append('start_date', startDate);
+                      if (endDate) params.append('end_date', endDate);
+                      if (clientFilter) params.append('client', clientFilter);
+                      const url = `${getApiUrl()}/export/invoices/pdf?${params.toString()}`;
+                      if (Platform.OS === 'web') {
+                        window.open(url, '_blank');
+                      }
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialIcons name="picture-as-pdf" size={18} color="#fff" />
+                    <Text style={styles.exportBtnText}>PDF</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.filterBtn, { backgroundColor: colors.textSecondary }]}
+                    onPress={clearFilters}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialIcons name="clear" size={18} color="#fff" />
+                    <Text style={styles.filterBtnText}>Limpiar</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           )}
 
-          {filteredInvoices.length === 0 ? (
+          {isLoadingList ? (
+            <View style={[styles.loadingListContainer, { backgroundColor: cardBackground, borderColor }]}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={[styles.loadingListText, { color: textSecondary }]}>
+                Cargando facturas...
+              </Text>
+            </View>
+          ) : filteredInvoices.length === 0 ? (
             <View style={[styles.emptyContainer, { backgroundColor: cardBackground, borderColor }]}>
               <MaterialIcons name="receipt-long" size={48} color={textSecondary} />
               <Text style={[styles.emptyText, { color: textSecondary }]}>
@@ -687,6 +751,7 @@ export default function InvoicesScreen() {
                   style={[styles.modalBtn, { backgroundColor: colors.textSecondary }]}
                   onPress={() => setModalVisible(false)}
                   activeOpacity={0.8}
+                  disabled={isLoading}
                 >
                   <Text style={[styles.modalBtnText, { color: textColor }]}>Cancelar</Text>
                 </TouchableOpacity>
@@ -694,8 +759,13 @@ export default function InvoicesScreen() {
                   style={[styles.modalBtn, { backgroundColor: colors.primary }]}
                   onPress={handleSaveInvoice}
                   activeOpacity={0.8}
+                  disabled={isLoading}
                 >
-                  <Text style={styles.modalBtnText}>Guardar</Text>
+                  {isLoading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.modalBtnText}>Guardar</Text>
+                  )}
                 </TouchableOpacity>
               </View>
             </View>
@@ -721,7 +791,7 @@ const styles = StyleSheet.create({
       web: {
         maxWidth: "100%",
       },
-    }),
+    }) as any,
   },
   header: {
     flexDirection: "row",
@@ -748,7 +818,7 @@ const styles = StyleSheet.create({
     gap: 8,
     ...Platform.select({
       web: {
-        boxShadow: "0 4px 12px rgba(0, 122, 255, 0.3)",
+        boxShadow: "0 4px 12px rgba(0, 122, 255, 0.3)" as any,
       },
       default: {
         shadowColor: "#007AFF",
@@ -757,7 +827,7 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
         elevation: 4,
       },
-    }),
+    }) as any,
   },
   createButtonText: {
     color: "#fff",
@@ -785,7 +855,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     ...Platform.select({
       web: {
-        boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
+        boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)" as any,
       },
       default: {
         shadowColor: "#000",
@@ -794,7 +864,7 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
         elevation: 3,
       },
-    }),
+    }) as any,
   },
   cardHeader: {
     flexDirection: "row",
@@ -853,7 +923,7 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     ...Platform.select({
       web: {
-        boxShadow: "0 8px 24px rgba(0, 0, 0, 0.2)",
+        boxShadow: "0 8px 24px rgba(0, 0, 0, 0.2)" as any,
       },
       default: {
         shadowColor: "#000",
@@ -862,7 +932,7 @@ const styles = StyleSheet.create({
         shadowRadius: 16,
         elevation: 8,
       },
-    }),
+    }) as any,
   },
   modalHeader: {
     flexDirection: "row",
@@ -1063,7 +1133,7 @@ const styles = StyleSheet.create({
     gap: 16,
     ...Platform.select({
       web: {
-        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)",
+        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)" as any,
       },
       default: {
         shadowColor: "#000",
@@ -1072,7 +1142,7 @@ const styles = StyleSheet.create({
         shadowRadius: 12,
         elevation: 4,
       },
-    }),
+    }) as any,
   },
   filtersRow: {
     flexDirection: "row",
@@ -1115,5 +1185,38 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "600",
     fontSize: 15,
+  },
+  filterActionsRow: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "center",
+  },
+  exportBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    gap: 6,
+  },
+  exportBtnText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  loadingListContainer: {
+    borderRadius: 16,
+    padding: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderStyle: "dashed",
+    marginTop: 40,
+  },
+  loadingListText: {
+    marginTop: 16,
+    fontSize: 16,
+    fontWeight: "500",
   },
 });

@@ -6,7 +6,7 @@ import { useResponsive } from "@/hooks/use-responsive";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
-  Alert,
+  ActivityIndicator,
   Platform,
   SafeAreaView,
   ScrollView,
@@ -15,6 +15,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+import { useToast } from "@/components/toast/ToastContext";
 
 interface Producto {
   id_producto: number;
@@ -25,7 +26,10 @@ interface Producto {
 
 export default function InventoryScreen() {
   const [productos, setProductos] = useState<Producto[]>([]);
+  const [isLoadingList, setIsLoadingList] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
+  const toast = useToast();
   const { isWeb, width } = useResponsive();
   const colorScheme = useColorScheme() ?? "light";
   const colors = Colors[colorScheme];
@@ -39,25 +43,32 @@ export default function InventoryScreen() {
   const horizontalPadding = isWeb && width > 768 ? 40 : 16;
 
   const handleRefresh = async () => {
+    setIsRefreshing(true);
     try {
       const response = await fetch(`${getApiUrl()}/products`);
       const data = await response.json();
       setProductos(data);
+      toast.success("Inventario actualizado");
     } catch (error) {
       console.error("Error al cargar productos:", error);
-      Alert.alert("Error", "No se pudieron cargar los productos");
+      toast.error("No se pudieron cargar los productos");
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
   useEffect(() => {
     const fetchProductos = async () => {
+      setIsLoadingList(true);
       try {
         const response = await fetch(`${getApiUrl()}/products`);
         const data = await response.json();
         setProductos(data);
       } catch (error) {
         console.error("Error al cargar productos:", error);
-        Alert.alert("Error", "No se pudieron cargar los productos");
+        toast.error("No se pudieron cargar los productos");
+      } finally {
+        setIsLoadingList(false);
       }
     };
 
@@ -84,8 +95,13 @@ export default function InventoryScreen() {
                 onPress={handleRefresh}
                 style={[styles.refreshButton, { backgroundColor: colors.primary + "15" }]}
                 activeOpacity={0.8}
+                disabled={isRefreshing}
               >
-                <Ionicons name="refresh" size={22} color={colors.primary} />
+                {isRefreshing ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <Ionicons name="refresh" size={22} color={colors.primary} />
+                )}
               </TouchableOpacity>
             </View>
             <ThemedText type="default" style={[styles.subtitle, { color: textSecondary }]}>
@@ -119,7 +135,14 @@ export default function InventoryScreen() {
               Productos Disponibles
             </ThemedText>
 
-            {productos.length === 0 ? (
+            {isLoadingList ? (
+              <View style={[styles.loadingListContainer, { backgroundColor: cardBackground, borderColor }]}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={[styles.loadingListText, { color: textSecondary }]}>
+                  Cargando inventario...
+                </Text>
+              </View>
+            ) : productos.length === 0 ? (
               <View style={[styles.emptyContainer, { backgroundColor: cardBackground, borderColor }]}>
                 <MaterialIcons name="inventory-2" size={48} color={textSecondary} />
                 <Text style={[styles.emptyText, { color: textSecondary }]}>No hay productos registrados.</Text>
@@ -184,9 +207,9 @@ const styles = StyleSheet.create({
     flex: 1,
     ...Platform.select({
       web: {
-        minHeight: "100vh",
+        minHeight: "100vh" as any,
       },
-    }),
+    }) as any,
   },
   scrollContent: {
     paddingTop: 20,
@@ -195,7 +218,7 @@ const styles = StyleSheet.create({
       web: {
         width: "100%",
       },
-    }),
+    }) as any,
   },
   container: {
     flex: 1,
@@ -204,7 +227,7 @@ const styles = StyleSheet.create({
       web: {
         maxWidth: "100%",
       },
-    }),
+    }) as any,
   },
   header: {
     marginBottom: 24,
@@ -220,7 +243,7 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     ...Platform.select({
       web: {
-        boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+        boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)" as any,
       },
       default: {
         shadowColor: "#000",
@@ -229,7 +252,7 @@ const styles = StyleSheet.create({
         shadowRadius: 4,
         elevation: 3,
       },
-    }),
+    }) as any,
   },
   title: {
     fontSize: 32,
@@ -248,7 +271,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-around",
     ...Platform.select({
       web: {
-        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)",
+        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)" as any,
       },
       default: {
         shadowColor: "#000",
@@ -257,7 +280,7 @@ const styles = StyleSheet.create({
         shadowRadius: 12,
         elevation: 4,
       },
-    }),
+    }) as any,
   },
   summaryItem: {
     flexDirection: "row",
@@ -304,7 +327,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     ...Platform.select({
       web: {
-        boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
+        boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)" as any,
       },
       default: {
         shadowColor: "#000",
@@ -313,7 +336,7 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
         elevation: 3,
       },
-    }),
+    }) as any,
   },
   cardContent: {
     flexDirection: "row",
@@ -371,5 +394,18 @@ const styles = StyleSheet.create({
   warningText: {
     fontSize: 13,
     fontWeight: "600",
+  },
+  loadingListContainer: {
+    borderRadius: 16,
+    padding: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderStyle: "dashed",
+  },
+  loadingListText: {
+    marginTop: 16,
+    fontSize: 16,
+    fontWeight: "500",
   },
 });

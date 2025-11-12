@@ -5,11 +5,11 @@ import {
   FlatList,
   StyleSheet,
   Text,
-  Alert,
   TouchableOpacity,
   ScrollView,
   SafeAreaView,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import { ThemedView } from "@/components/themed-view";
 import { ThemedText } from "@/components/themed-text";
@@ -19,6 +19,8 @@ import { useThemeColor } from "@/hooks/use-theme-color";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { MaterialIcons } from "@expo/vector-icons";
+import { useToast } from "@/components/toast/ToastContext";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 interface Cliente {
   id_cliente: number;
@@ -33,25 +35,32 @@ export default function ClientesScreen() {
   const [direccion, setDireccion] = useState("");
   const [telefono, setTelefono] = useState("");
   const [editandoId, setEditandoId] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingList, setIsLoadingList] = useState(true);
+  const [confirmDialogVisible, setConfirmDialogVisible] = useState(false);
+  const [clienteToDelete, setClienteToDelete] = useState<number | null>(null);
+
   const { isWeb, width } = useResponsive();
-  const colorScheme = useColorScheme() ?? "light"; // Forzar tema claro
+  const colorScheme = useColorScheme() ?? "light";
   const colors = Colors[colorScheme];
   const backgroundColor = Colors[colorScheme].background;
   const cardBackground = Colors[colorScheme].backgroundCard;
   const borderColor = Colors[colorScheme].border;
   const textColor = Colors[colorScheme].text;
   const textSecondary = Colors[colorScheme].textSecondary;
-  
+  const toast = useToast();
+
   const maxContentWidth = isWeb && width > 768 ? 800 : undefined;
   const horizontalPadding = isWeb && width > 768 ? 40 : 16;
 
   // 🔹 Agregar o actualizar cliente
   const agregarCliente = async () => {
     if (!nombre.trim()) {
-      Alert.alert("Error", "El nombre es obligatorio");
+      toast.error("El nombre es obligatorio");
       return;
     }
 
+    setIsLoading(true);
     try {
       if (editandoId) {
         // Actualizar cliente existente
@@ -74,7 +83,7 @@ export default function ClientesScreen() {
           throw new Error("Error al actualizar el cliente");
         }
 
-        Alert.alert("Éxito", "Cliente actualizado correctamente");
+        toast.success("Cliente actualizado correctamente");
         setEditandoId(null);
       } else {
         // Crear nuevo cliente
@@ -94,7 +103,7 @@ export default function ClientesScreen() {
           throw new Error("Error al crear el cliente");
         }
 
-        Alert.alert("Éxito", "Cliente agregado correctamente");
+        toast.success("Cliente agregado correctamente");
       }
 
       // Recargar todos los clientes desde el servidor
@@ -107,14 +116,26 @@ export default function ClientesScreen() {
       setTelefono("");
     } catch (error) {
       console.error("Error:", error);
-      Alert.alert("Error", "No se pudo completar la operación");
+      toast.error("No se pudo completar la operación");
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  // 🔹 Mostrar diálogo de confirmación para eliminar
+  const mostrarConfirmacionEliminar = (id: number) => {
+    setClienteToDelete(id);
+    setConfirmDialogVisible(true);
+  };
+
   // 🔹 Eliminar cliente
-  const eliminarCliente = async (id: number) => {
+  const eliminarCliente = async () => {
+    if (!clienteToDelete) return;
+
+    setConfirmDialogVisible(false);
+
     try {
-      const response = await fetch(`${getApiUrl()}/clients/${id}`, {
+      const response = await fetch(`${getApiUrl()}/clients/${clienteToDelete}`, {
         method: "DELETE",
       });
 
@@ -127,10 +148,12 @@ export default function ClientesScreen() {
       const updatedClientes = await refreshResponse.json();
       setClientes(updatedClientes);
 
-      Alert.alert("Éxito", "Cliente eliminado correctamente");
+      toast.success("Cliente eliminado correctamente");
     } catch (error) {
       console.error("Error al eliminar el cliente:", error);
-      Alert.alert("Error", "No se pudo eliminar el cliente");
+      toast.error("No se pudo eliminar el cliente");
+    } finally {
+      setClienteToDelete(null);
     }
   };
 
@@ -145,6 +168,7 @@ export default function ClientesScreen() {
 
   useEffect(() => {
     const obtenerClientes = async () => {
+      setIsLoadingList(true);
       try {
         const response = await fetch(`${getApiUrl()}/clients`);
         if (!response.ok) {
@@ -155,7 +179,9 @@ export default function ClientesScreen() {
         setClientes(data);
       } catch (error) {
         console.error(error);
-        Alert.alert("Error", "No se pudo conectar con el servidor");
+        toast.error("No se pudo conectar con el servidor");
+      } finally {
+        setIsLoadingList(false);
       }
     };
 
@@ -216,14 +242,19 @@ export default function ClientesScreen() {
             />
           </View>
 
-          <TouchableOpacity 
-            style={[styles.button, { backgroundColor: colors.primary }]} 
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: colors.primary, opacity: isLoading ? 0.7 : 1 }]}
             onPress={agregarCliente}
             activeOpacity={0.8}
+            disabled={isLoading}
           >
-            <Text style={styles.buttonText}>
-              {editandoId ? "Guardar Cambios" : "Agregar Cliente"}
-            </Text>
+            {isLoading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>
+                {editandoId ? "Guardar Cambios" : "Agregar Cliente"}
+              </Text>
+            )}
           </TouchableOpacity>
 
           {editandoId && (
@@ -248,7 +279,12 @@ export default function ClientesScreen() {
             Lista de Clientes
           </ThemedText>
 
-          {clientes.length === 0 ? (
+          {isLoadingList ? (
+            <View style={[styles.loadingContainer, { backgroundColor: cardBackground, borderColor }]}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={[styles.loadingText, { color: textSecondary }]}>Cargando clientes...</Text>
+            </View>
+          ) : clientes.length === 0 ? (
             <View style={[styles.emptyContainer, { backgroundColor: cardBackground, borderColor }]}>
               <MaterialIcons name="people-outline" size={48} color={textSecondary} />
               <Text style={[styles.emptyText, { color: textSecondary }]}>No hay clientes registrados.</Text>
@@ -287,7 +323,7 @@ export default function ClientesScreen() {
                       <Text style={styles.actionText}>Editar</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      onPress={() => eliminarCliente(item.id_cliente)}
+                      onPress={() => mostrarConfirmacionEliminar(item.id_cliente)}
                       style={[styles.actionBtn, styles.deleteBtn, { backgroundColor: colors.error }]}
                       activeOpacity={0.8}
                     >
@@ -302,6 +338,20 @@ export default function ClientesScreen() {
         </View>
       </View>
       </ScrollView>
+
+      <ConfirmDialog
+        visible={confirmDialogVisible}
+        title="Eliminar Cliente"
+        message="¿Estás seguro de que deseas eliminar este cliente? Esta acción no se puede deshacer."
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        type="error"
+        onConfirm={eliminarCliente}
+        onCancel={() => {
+          setConfirmDialogVisible(false);
+          setClienteToDelete(null);
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -311,9 +361,9 @@ const styles = StyleSheet.create({
     flex: 1,
     ...Platform.select({
       web: {
-        minHeight: "100vh",
+        minHeight: "100vh" as any,
       },
-    }),
+    }) as any,
   },
   scrollContent: {
     paddingTop: 20,
@@ -322,7 +372,7 @@ const styles = StyleSheet.create({
       web: {
         width: "100%",
       },
-    }),
+    }) as any,
   },
   container: {
     flex: 1,
@@ -331,7 +381,7 @@ const styles = StyleSheet.create({
       web: {
         maxWidth: "100%",
       },
-    }),
+    }) as any,
   },
   header: {
     marginBottom: 24,
@@ -354,7 +404,7 @@ const styles = StyleSheet.create({
     gap: 16,
     ...Platform.select({
       web: {
-        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)",
+        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)" as any,
       },
       default: {
         shadowColor: "#000",
@@ -363,7 +413,7 @@ const styles = StyleSheet.create({
         shadowRadius: 12,
         elevation: 4,
       },
-    }),
+    }) as any,
   },
   inputContainer: {
     flexDirection: "row",
@@ -390,7 +440,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     ...Platform.select({
       web: {
-        boxShadow: "0 4px 12px rgba(0, 122, 255, 0.3)",
+        boxShadow: "0 4px 12px rgba(0, 122, 255, 0.3)" as any,
       },
       default: {
         shadowColor: "#007AFF",
@@ -399,7 +449,7 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
         elevation: 4,
       },
-    }),
+    }) as any,
   },
   cancelButton: {
     marginTop: 12,
@@ -429,6 +479,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: "center",
   },
+  loadingContainer: {
+    borderRadius: 16,
+    padding: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    gap: 16,
+  },
+  loadingText: {
+    fontSize: 16,
+    textAlign: "center",
+  },
   listContainer: {
     gap: 12,
   },
@@ -439,7 +501,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     ...Platform.select({
       web: {
-        boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
+        boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)" as any,
       },
       default: {
         shadowColor: "#000",
@@ -448,7 +510,7 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
         elevation: 3,
       },
-    }),
+    }) as any,
   },
   cardContent: {
     flexDirection: "row",

@@ -6,7 +6,7 @@ import { useResponsive } from "@/hooks/use-responsive";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
-  Alert,
+  ActivityIndicator,
   Modal,
   Platform,
   SafeAreaView,
@@ -17,6 +17,8 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+import { useToast } from "@/components/toast/ToastContext";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 interface Producto {
   id_producto: number;
@@ -30,26 +32,33 @@ export default function ProductsScreen() {
   const [nombre, setNombre] = useState("");
   const [precio, setPrecio] = useState("");
   const [stock, setStock] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingList, setIsLoadingList] = useState(true);
 
   // Modal para edición
   const [modalVisible, setModalVisible] = useState(false);
   const [productoEdit, setProductoEdit] = useState<Producto | null>(null);
-  
+
+  // Confirmación de eliminación
+  const [confirmDialogVisible, setConfirmDialogVisible] = useState(false);
+  const [productoToDelete, setProductoToDelete] = useState<number | null>(null);
+
   const { isWeb, width } = useResponsive();
-  const colorScheme = useColorScheme() ?? "light"; // Forzar tema claro
+  const colorScheme = useColorScheme() ?? "light";
   const colors = Colors[colorScheme];
   const backgroundColor = Colors[colorScheme].background;
   const cardBackground = Colors[colorScheme].backgroundCard;
   const borderColor = Colors[colorScheme].border;
   const textColor = Colors[colorScheme].text;
   const textSecondary = Colors[colorScheme].textSecondary;
-  
+  const toast = useToast();
+
   const maxContentWidth = isWeb && width > 768 ? 800 : undefined;
   const horizontalPadding = isWeb && width > 768 ? 40 : 16;
 
   const agregarProducto = async () => {
     if (!nombre.trim() || !precio.trim()) {
-      Alert.alert("Error", "El nombre y el precio son obligatorios");
+      toast.error("El nombre y el precio son obligatorios");
       return;
     }
 
@@ -59,7 +68,7 @@ export default function ProductsScreen() {
       stock: parseInt(stock) || 0,
     };
 
-    // Limpiar formulario inmediatamente
+    setIsLoading(true);
     setNombre("");
     setPrecio("");
     setStock("");
@@ -75,24 +84,32 @@ export default function ProductsScreen() {
         throw new Error("Error al crear el producto");
       }
 
-      const productoCreado = await response.json();
-      console.log("PRODUCTO CREADO:", productoCreado);
-
-      // Recargar todos los productos para obtener el ID real de la BD
+      // Recargar todos los productos
       const responseList = await fetch(`${getApiUrl()}/products`);
       const productosActualizados = await responseList.json();
       setProductos(productosActualizados);
 
-      Alert.alert("Éxito", "Producto agregado correctamente");
+      toast.success("Producto agregado correctamente");
     } catch (error) {
       console.error("ERROR CREAR PRODUCTOS", error);
-      Alert.alert("Error", "No se pudo crear el producto");
+      toast.error("No se pudo crear el producto");
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const eliminarProducto = async (id: number) => {
+  const mostrarConfirmacionEliminar = (id: number) => {
+    setProductoToDelete(id);
+    setConfirmDialogVisible(true);
+  };
+
+  const eliminarProducto = async () => {
+    if (!productoToDelete) return;
+
+    setConfirmDialogVisible(false);
+
     try {
-      const response = await fetch(`${getApiUrl()}/products/${id}`, {
+      const response = await fetch(`${getApiUrl()}/products/${productoToDelete}`, {
         method: "DELETE",
       });
 
@@ -103,10 +120,12 @@ export default function ProductsScreen() {
       const updatedProductos = await refreshResponse.json();
       setProductos(updatedProductos);
 
-      Alert.alert("Éxito", "Producto eliminado correctamente");
+      toast.success("Producto eliminado correctamente");
     } catch (error) {
       console.error("Error al eliminar:", error);
-      Alert.alert("Error", "No se pudo eliminar el producto");
+      toast.error("No se pudo eliminar el producto");
+    } finally {
+      setProductoToDelete(null);
     }
   };
 
@@ -124,7 +143,7 @@ export default function ProductsScreen() {
     if (!productoEdit) return;
 
     if (!productoEdit.nombre.trim() || productoEdit.precio_unitario <= 0) {
-      Alert.alert("Error", "Nombre y precio deben ser válidos");
+      toast.error("Nombre y precio deben ser válidos");
       return;
     }
 
@@ -147,10 +166,10 @@ export default function ProductsScreen() {
       const updatedProductos = await refreshResponse.json();
       setProductos(updatedProductos);
 
-      Alert.alert("Éxito", "Producto actualizado correctamente");
+      toast.success("Producto actualizado correctamente");
     } catch (error) {
       console.log("ERROR EDITAR PRODUCTOS", error);
-      Alert.alert("Error", "No se pudo actualizar el producto");
+      toast.error("No se pudo actualizar el producto");
     } finally {
       cerrarModal();
     }
@@ -158,27 +177,28 @@ export default function ProductsScreen() {
 
   const handleRefresh = async () => {
     try {
-      console.log("aaaaaa");
       const response = await fetch(`${getApiUrl()}/products`);
       const data = await response.json();
       setProductos(data);
-
-      console.log("PRODUCTOS REFRESCADOS", data);
+      toast.success("Productos actualizados");
     } catch (error) {
       console.error("Error al cargar productos:", error);
-      Alert.alert("Error", "No se pudieron cargar los productos");
+      toast.error("No se pudieron cargar los productos");
     }
   };
 
   useEffect(() => {
     const fetchProductos = async () => {
+      setIsLoadingList(true);
       try {
         const response = await fetch(`${getApiUrl()}/products`);
         const data = await response.json();
         setProductos(data);
       } catch (error) {
         console.error("Error al cargar productos:", error);
-        Alert.alert("Error", "No se pudieron cargar los productos");
+        toast.error("No se pudieron cargar los productos");
+      } finally {
+        setIsLoadingList(false);
       }
     };
 
@@ -251,12 +271,17 @@ export default function ProductsScreen() {
             />
           </View>
 
-          <TouchableOpacity 
-            style={[styles.button, { backgroundColor: colors.primary }]} 
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: colors.primary, opacity: isLoading ? 0.7 : 1 }]}
             onPress={agregarProducto}
             activeOpacity={0.8}
+            disabled={isLoading}
           >
-            <Text style={styles.buttonText}>Agregar Producto</Text>
+            {isLoading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Agregar Producto</Text>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -266,7 +291,12 @@ export default function ProductsScreen() {
             Lista de Productos
           </ThemedText>
 
-          {productos.length === 0 ? (
+          {isLoadingList ? (
+            <View style={[styles.loadingContainer, { backgroundColor: cardBackground, borderColor }]}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={[styles.loadingText, { color: textSecondary }]}>Cargando productos...</Text>
+            </View>
+          ) : productos.length === 0 ? (
             <View style={[styles.emptyContainer, { backgroundColor: cardBackground, borderColor }]}>
               <MaterialIcons name="inventory-2" size={48} color={textSecondary} />
               <Text style={[styles.emptyText, { color: textSecondary }]}>No hay productos registrados.</Text>
@@ -314,7 +344,7 @@ export default function ProductsScreen() {
 
                     <TouchableOpacity
                       style={[styles.actionButton, { backgroundColor: colors.error }]}
-                      onPress={() => eliminarProducto(item.id_producto)}
+                      onPress={() => mostrarConfirmacionEliminar(item.id_producto)}
                       activeOpacity={0.8}
                     >
                       <MaterialIcons name="delete" size={16} color="#fff" />
@@ -418,6 +448,20 @@ export default function ProductsScreen() {
         </Modal>
       </View>
       </ScrollView>
+
+      <ConfirmDialog
+        visible={confirmDialogVisible}
+        title="Eliminar Producto"
+        message="¿Estás seguro de que deseas eliminar este producto? Esta acción no se puede deshacer."
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        type="error"
+        onConfirm={eliminarProducto}
+        onCancel={() => {
+          setConfirmDialogVisible(false);
+          setProductoToDelete(null);
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -427,10 +471,10 @@ const styles = StyleSheet.create({
     flex: 1,
     ...Platform.select({
       web: {
-        minHeight: "100vh",
+        minHeight: "100vh" as any,
       },
-    }),
-  },
+    }) as any,
+  } as any,
   scrollContent: {
     paddingTop: 20,
     paddingBottom: 100,
@@ -438,8 +482,8 @@ const styles = StyleSheet.create({
       web: {
         width: "100%",
       },
-    }),
-  },
+    }) as any,
+  } as any,
   container: {
     flex: 1,
     width: "100%",
@@ -447,8 +491,8 @@ const styles = StyleSheet.create({
       web: {
         maxWidth: "100%",
       },
-    }),
-  },
+    }) as any,
+  } as any,
   header: {
     marginBottom: 24,
   },
@@ -463,7 +507,7 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     ...Platform.select({
       web: {
-        boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+        boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)" as any,
       },
       default: {
         shadowColor: "#000",
@@ -472,8 +516,8 @@ const styles = StyleSheet.create({
         shadowRadius: 4,
         elevation: 3,
       },
-    }),
-  },
+    }) as any,
+  } as any,
   title: {
     fontSize: 32,
     fontWeight: "700",
@@ -491,7 +535,7 @@ const styles = StyleSheet.create({
     gap: 16,
     ...Platform.select({
       web: {
-        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)",
+        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)" as any,
       },
       default: {
         shadowColor: "#000",
@@ -500,8 +544,8 @@ const styles = StyleSheet.create({
         shadowRadius: 12,
         elevation: 4,
       },
-    }),
-  },
+    }) as any,
+  } as any,
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -527,7 +571,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     ...Platform.select({
       web: {
-        boxShadow: "0 4px 12px rgba(0, 122, 255, 0.3)",
+        boxShadow: "0 4px 12px rgba(0, 122, 255, 0.3)" as any,
       },
       default: {
         shadowColor: "#007AFF",
@@ -536,8 +580,8 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
         elevation: 4,
       },
-    }),
-  },
+    }) as any,
+  } as any,
   buttonText: {
     color: "#fff",
     fontWeight: "600",
@@ -563,6 +607,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: "center",
   },
+  loadingContainer: {
+    borderRadius: 16,
+    padding: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    gap: 16,
+  },
+  loadingText: {
+    fontSize: 16,
+    textAlign: "center",
+  },
   listContainer: {
     gap: 12,
   },
@@ -573,7 +629,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     ...Platform.select({
       web: {
-        boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
+        boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)" as any,
       },
       default: {
         shadowColor: "#000",
@@ -582,8 +638,8 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
         elevation: 3,
       },
-    }),
-  },
+    }) as any,
+  } as any,
   cardContent: {
     flexDirection: "row",
     marginBottom: 16,
@@ -663,7 +719,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     ...Platform.select({
       web: {
-        boxShadow: "0 8px 24px rgba(0, 0, 0, 0.2)",
+        boxShadow: "0 8px 24px rgba(0, 0, 0, 0.2)" as any,
       },
       default: {
         shadowColor: "#000",
@@ -672,8 +728,8 @@ const styles = StyleSheet.create({
         shadowRadius: 16,
         elevation: 8,
       },
-    }),
-  },
+    }) as any,
+  } as any,
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",

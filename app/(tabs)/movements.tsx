@@ -1,4 +1,4 @@
-import { StyleSheet, FlatList, View, TouchableOpacity, SafeAreaView, Platform, Text, TextInput } from "react-native";
+import { StyleSheet, FlatList, View, TouchableOpacity, SafeAreaView, Platform, Text, TextInput, ActivityIndicator } from "react-native";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -9,6 +9,8 @@ import { getApiUrl } from "@/constants/api";
 import { useResponsive } from "@/hooks/use-responsive";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { useToast } from "@/components/toast/ToastContext";
+import { DatePicker } from "@/components/DatePicker";
 
 type Product = {
   id: number;
@@ -28,11 +30,14 @@ type Movement = {
 export default function MovementsScreen() {
   const [movements, setMovements] = useState<any[]>([]);
   const [filteredMovements, setFilteredMovements] = useState<any[]>([]);
+  const [isLoadingList, setIsLoadingList] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Estados de filtros (solo para web)
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
+  const toast = useToast();
   const { isWeb, width } = useResponsive();
   const colorScheme = useColorScheme() ?? "light"; // Forzar tema claro
   const colors = Colors[colorScheme];
@@ -46,20 +51,27 @@ export default function MovementsScreen() {
   const horizontalPadding = isWeb && width > 768 ? 40 : 16;
 
   const handleRefresh = async () => {
+    setIsRefreshing(true);
     try {
-      console.log("aaaaaa");
+      console.log("Refrescando movimientos...");
       const response = await fetch(`${getApiUrl()}/movements`);
       const data = await response.json();
       setMovements(data);
+      setFilteredMovements(data);
 
-      console.log("PRODUCTOS REFRESCADOS", data);
+      console.log("MOVIMIENTOS REFRESCADOS", data);
+      toast.success("Movimientos actualizados");
     } catch (error) {
-      console.error("Error al cargar productos:", error);
+      console.error("Error al cargar movimientos:", error);
+      toast.error("No se pudieron actualizar los movimientos");
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
   useEffect(() => {
     const fetchProductos = async () => {
+      setIsLoadingList(true);
       try {
         const response = await fetch(`${getApiUrl()}/movements`);
         const data = await response.json();
@@ -69,6 +81,9 @@ export default function MovementsScreen() {
         console.log("MOVIMIENTOS", data);
       } catch (error) {
         console.error("Error al cargar MOVIMIENTOS:", error);
+        toast.error("No se pudieron cargar los movimientos");
+      } finally {
+        setIsLoadingList(false);
       }
     };
 
@@ -132,7 +147,7 @@ export default function MovementsScreen() {
 
         <View style={styles.amountContainer}>
           <Text style={[styles.amountText, { color: colors.success }]}>
-            ${parseFloat(item.precio_total_linea).toLocaleString()}
+            ${Number(item.precio_total_linea).toLocaleString()}
           </Text>
         </View>
       </View>
@@ -157,8 +172,13 @@ export default function MovementsScreen() {
                 onPress={handleRefresh}
                 style={[styles.refreshButton, { backgroundColor: colors.primary + "15" }]}
                 activeOpacity={0.8}
+                disabled={isRefreshing}
               >
-                <Ionicons name="refresh" size={22} color={colors.primary} />
+                {isRefreshing ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <Ionicons name="refresh" size={22} color={colors.primary} />
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -189,24 +209,18 @@ export default function MovementsScreen() {
           {isWeb && (
             <View style={[styles.filtersContainer, { backgroundColor: cardBackground, borderColor }]}>
               <View style={styles.filtersRow}>
-                <View style={[styles.filterInput, { flex: 1 }]}>
-                  <MaterialIcons name="event" size={20} color={colors.primary} style={styles.inputIcon} />
-                  <TextInput
-                    style={[styles.input, { color: textColor, borderColor }]}
-                    placeholder="Fecha inicio (YYYY-MM-DD)"
+                <View style={{ flex: 1 }}>
+                  <DatePicker
                     value={startDate}
-                    onChangeText={setStartDate}
-                    placeholderTextColor={textSecondary}
+                    onChange={setStartDate}
+                    placeholder="Fecha inicio"
                   />
                 </View>
-                <View style={[styles.filterInput, { flex: 1 }]}>
-                  <MaterialIcons name="event" size={20} color={colors.primary} style={styles.inputIcon} />
-                  <TextInput
-                    style={[styles.input, { color: textColor, borderColor }]}
-                    placeholder="Fecha fin (YYYY-MM-DD)"
+                <View style={{ flex: 1 }}>
+                  <DatePicker
                     value={endDate}
-                    onChangeText={setEndDate}
-                    placeholderTextColor={textSecondary}
+                    onChange={setEndDate}
+                    placeholder="Fecha fin"
                   />
                 </View>
               </View>
@@ -218,19 +232,60 @@ export default function MovementsScreen() {
                     Mostrando {filteredMovements.length} de {movements.length} movimientos
                   </Text>
                 </View>
-                <TouchableOpacity
-                  style={[styles.filterBtn, { backgroundColor: colors.error }]}
-                  onPress={clearFilters}
-                  activeOpacity={0.8}
-                >
-                  <MaterialIcons name="clear" size={18} color="#fff" />
-                  <Text style={styles.filterBtnText}>Limpiar Filtros</Text>
-                </TouchableOpacity>
+                <View style={styles.filterActionsRow}>
+                  <TouchableOpacity
+                    style={[styles.exportBtn, { backgroundColor: colors.success }]}
+                    onPress={() => {
+                      const params = new URLSearchParams();
+                      if (startDate) params.append('start_date', startDate);
+                      if (endDate) params.append('end_date', endDate);
+                      const url = `${getApiUrl()}/export/movements/excel?${params.toString()}`;
+                      if (Platform.OS === 'web') {
+                        window.open(url, '_blank');
+                      }
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialIcons name="file-download" size={18} color="#fff" />
+                    <Text style={styles.exportBtnText}>Excel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.exportBtn, { backgroundColor: colors.error }]}
+                    onPress={() => {
+                      const params = new URLSearchParams();
+                      if (startDate) params.append('start_date', startDate);
+                      if (endDate) params.append('end_date', endDate);
+                      const url = `${getApiUrl()}/export/movements/pdf?${params.toString()}`;
+                      if (Platform.OS === 'web') {
+                        window.open(url, '_blank');
+                      }
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialIcons name="picture-as-pdf" size={18} color="#fff" />
+                    <Text style={styles.exportBtnText}>PDF</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.filterBtn, { backgroundColor: colors.textSecondary }]}
+                    onPress={clearFilters}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialIcons name="clear" size={18} color="#fff" />
+                    <Text style={styles.filterBtnText}>Limpiar</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           )}
 
-          {filteredMovements.length === 0 ? (
+          {isLoadingList ? (
+            <View style={[styles.loadingListContainer, { backgroundColor: cardBackground, borderColor }]}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={[styles.loadingListText, { color: textSecondary }]}>
+                Cargando movimientos...
+              </Text>
+            </View>
+          ) : filteredMovements.length === 0 ? (
             <View style={[styles.emptyContainer, { backgroundColor: cardBackground, borderColor }]}>
               <MaterialIcons name="shopping-cart" size={48} color={textSecondary} />
               <Text style={[styles.emptyText, { color: textSecondary }]}>
@@ -269,7 +324,7 @@ const styles = StyleSheet.create({
       web: {
         maxWidth: "100%",
       },
-    }),
+    }) as any,
   },
   header: {
     marginBottom: 24,
@@ -294,7 +349,7 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     ...Platform.select({
       web: {
-        boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+        boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)" as any,
       },
       default: {
         shadowColor: "#000",
@@ -303,7 +358,7 @@ const styles = StyleSheet.create({
         shadowRadius: 4,
         elevation: 3,
       },
-    }),
+    }) as any,
   },
   emptyContainer: {
     borderRadius: 16,
@@ -326,7 +381,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     ...Platform.select({
       web: {
-        boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
+        boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)" as any,
       },
       default: {
         shadowColor: "#000",
@@ -335,7 +390,7 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
         elevation: 3,
       },
-    }),
+    }) as any,
   },
   row: {
     flexDirection: "row",
@@ -381,7 +436,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-around",
     ...Platform.select({
       web: {
-        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)",
+        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)" as any,
       },
       default: {
         shadowColor: "#000",
@@ -390,7 +445,7 @@ const styles = StyleSheet.create({
         shadowRadius: 12,
         elevation: 4,
       },
-    }),
+    }) as any,
   },
   summaryItem: {
     flexDirection: "row",
@@ -417,7 +472,7 @@ const styles = StyleSheet.create({
     gap: 16,
     ...Platform.select({
       web: {
-        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)",
+        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)" as any,
       },
       default: {
         shadowColor: "#000",
@@ -426,7 +481,7 @@ const styles = StyleSheet.create({
         shadowRadius: 12,
         elevation: 4,
       },
-    }),
+    }) as any,
   },
   filtersRow: {
     flexDirection: "row",
@@ -479,5 +534,38 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "600",
     fontSize: 15,
+  },
+  filterActionsRow: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "center",
+  },
+  exportBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    gap: 6,
+  },
+  exportBtnText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  loadingListContainer: {
+    borderRadius: 16,
+    padding: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderStyle: "dashed",
+    marginTop: 40,
+  },
+  loadingListText: {
+    marginTop: 16,
+    fontSize: 16,
+    fontWeight: "500",
   },
 });

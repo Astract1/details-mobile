@@ -10,6 +10,7 @@ import { Platform } from "react-native";
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const isWeb = Platform.OS === "web";
 
   return (
     <Tabs
@@ -19,10 +20,12 @@ export default function TabLayout() {
         tabBarButton: HapticTab,
       }}
     >
+      {/* TABS SOLO PARA MÓVIL - Gestión Transaccional */}
       <Tabs.Screen
         name="index"
         options={{
-          title: "Home",
+          title: "Clientes",
+          href: isWeb ? null : undefined,
           tabBarIcon: ({ color }) => (
             <IconSymbol size={28} name="house.fill" color={color} />
           ),
@@ -33,12 +36,14 @@ export default function TabLayout() {
         name="products"
         options={{
           title: "Productos",
+          href: isWeb ? null : undefined,
           tabBarIcon: ({ color, size }) => (
             <MaterialIcons name="shopping-cart" size={28} color={color} />
           ),
         }}
       />
 
+      {/* TAB COMPARTIDO - Visible en ambos */}
       <Tabs.Screen
         name="invoice"
         options={{
@@ -53,16 +58,29 @@ export default function TabLayout() {
         }}
       />
 
+      {/* TABS SOLO PARA WEB - Reportes y Consultas */}
       <Tabs.Screen
         name="movements"
         options={{
           title: "Movimientos",
+          href: !isWeb ? null : undefined,
           tabBarIcon: ({ color, size, focused }) => (
             <MaterialIcons
-              name={focused ? "compare-arrows" : "swap-horiz"} // alterna según si está activo
+              name={focused ? "compare-arrows" : "swap-horiz"}
               size={28}
               color={color}
             />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="inventory"
+        options={{
+          title: "Inventario",
+          href: !isWeb ? null : undefined,
+          tabBarIcon: ({ color, size }) => (
+            <MaterialIcons name="inventory" size={28} color={color} />
           ),
         }}
       />

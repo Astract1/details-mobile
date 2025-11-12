@@ -1,4 +1,4 @@
-import { StyleSheet, FlatList, View, TouchableOpacity, SafeAreaView, Platform, Text } from "react-native";
+import { StyleSheet, FlatList, View, TouchableOpacity, SafeAreaView, Platform, Text, TextInput } from "react-native";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -27,7 +27,12 @@ type Movement = {
 
 export default function MovementsScreen() {
   const [movements, setMovements] = useState<any[]>([]);
-  
+  const [filteredMovements, setFilteredMovements] = useState<any[]>([]);
+
+  // Estados de filtros (solo para web)
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
   const { isWeb, width } = useResponsive();
   const colorScheme = useColorScheme() ?? "light"; // Forzar tema claro
   const colors = Colors[colorScheme];
@@ -36,8 +41,8 @@ export default function MovementsScreen() {
   const borderColor = Colors[colorScheme].border;
   const textColor = Colors[colorScheme].text;
   const textSecondary = Colors[colorScheme].textSecondary;
-  
-  const maxContentWidth = isWeb && width > 768 ? 900 : undefined;
+
+  const maxContentWidth = isWeb && width > 768 ? 1000 : undefined;
   const horizontalPadding = isWeb && width > 768 ? 40 : 16;
 
   const handleRefresh = async () => {
@@ -60,6 +65,7 @@ export default function MovementsScreen() {
         const data = await response.json();
 
         setMovements(data);
+        setFilteredMovements(data);
         console.log("MOVIMIENTOS", data);
       } catch (error) {
         console.error("Error al cargar MOVIMIENTOS:", error);
@@ -68,6 +74,42 @@ export default function MovementsScreen() {
 
     fetchProductos();
   }, []);
+
+  // Auto-aplicar filtros cuando cambian los valores o los movimientos
+  useEffect(() => {
+    let filtered = [...movements];
+
+    // Filtrar por rango de fechas (si existe fecha en los movimientos)
+    if (startDate) {
+      filtered = filtered.filter(mov => {
+        if (!mov.fecha) return false;
+        const movDate = new Date(mov.fecha);
+        const start = new Date(startDate);
+        return movDate >= start;
+      });
+    }
+
+    if (endDate) {
+      filtered = filtered.filter(mov => {
+        if (!mov.fecha) return false;
+        const movDate = new Date(mov.fecha);
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        return movDate <= end;
+      });
+    }
+
+    setFilteredMovements(filtered);
+  }, [startDate, endDate, movements]);
+
+  const clearFilters = () => {
+    setStartDate("");
+    setEndDate("");
+  };
+
+  // Calcular totales
+  const totalMovements = filteredMovements.length;
+  const totalAmount = filteredMovements.reduce((sum, mov) => sum + parseFloat(mov.precio_total_linea || 0), 0);
 
   const renderMovement = ({ item }: { item: Movement }) => (
     <View style={[styles.card, { backgroundColor: cardBackground, borderColor }]}>
@@ -90,7 +132,7 @@ export default function MovementsScreen() {
 
         <View style={styles.amountContainer}>
           <Text style={[styles.amountText, { color: colors.success }]}>
-            ${item.precio_total_linea.toLocaleString()}
+            ${parseFloat(item.precio_total_linea).toLocaleString()}
           </Text>
         </View>
       </View>
@@ -105,14 +147,14 @@ export default function MovementsScreen() {
             <View style={styles.headerRow}>
               <View>
                 <ThemedText type="title" style={styles.title}>
-                  Movimientos
+                  Historial de Movimientos
                 </ThemedText>
                 <ThemedText type="default" style={[styles.subtitle, { color: textSecondary }]}>
-                  Consulta los movimientos de compra de los clientes.
+                  Consulta las transacciones y ventas realizadas
                 </ThemedText>
               </View>
-              <TouchableOpacity 
-                onPress={handleRefresh} 
+              <TouchableOpacity
+                onPress={handleRefresh}
                 style={[styles.refreshButton, { backgroundColor: colors.primary + "15" }]}
                 activeOpacity={0.8}
               >
@@ -121,14 +163,85 @@ export default function MovementsScreen() {
             </View>
           </View>
 
-          {movements.length === 0 ? (
+          {/* Resumen de totales (solo web) */}
+          {isWeb && filteredMovements.length > 0 && (
+            <View style={[styles.summaryCard, { backgroundColor: cardBackground, borderColor }]}>
+              <View style={styles.summaryItem}>
+                <MaterialIcons name="receipt-long" size={24} color={colors.primary} />
+                <View style={styles.summaryText}>
+                  <Text style={[styles.summaryValue, { color: textColor }]}>{totalMovements}</Text>
+                  <Text style={[styles.summaryLabel, { color: textSecondary }]}>Transacciones</Text>
+                </View>
+              </View>
+              <View style={styles.summaryItem}>
+                <MaterialIcons name="attach-money" size={24} color={colors.success} />
+                <View style={styles.summaryText}>
+                  <Text style={[styles.summaryValue, { color: colors.success }]}>
+                    ${totalAmount.toLocaleString()}
+                  </Text>
+                  <Text style={[styles.summaryLabel, { color: textSecondary }]}>Total Vendido</Text>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Filtros solo para web */}
+          {isWeb && (
+            <View style={[styles.filtersContainer, { backgroundColor: cardBackground, borderColor }]}>
+              <View style={styles.filtersRow}>
+                <View style={[styles.filterInput, { flex: 1 }]}>
+                  <MaterialIcons name="event" size={20} color={colors.primary} style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, { color: textColor, borderColor }]}
+                    placeholder="Fecha inicio (YYYY-MM-DD)"
+                    value={startDate}
+                    onChangeText={setStartDate}
+                    placeholderTextColor={textSecondary}
+                  />
+                </View>
+                <View style={[styles.filterInput, { flex: 1 }]}>
+                  <MaterialIcons name="event" size={20} color={colors.primary} style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, { color: textColor, borderColor }]}
+                    placeholder="Fecha fin (YYYY-MM-DD)"
+                    value={endDate}
+                    onChangeText={setEndDate}
+                    placeholderTextColor={textSecondary}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.filterButtons}>
+                <View style={styles.filterCounter}>
+                  <MaterialIcons name="info-outline" size={16} color={colors.primary} />
+                  <Text style={[styles.filterCounterText, { color: textSecondary }]}>
+                    Mostrando {filteredMovements.length} de {movements.length} movimientos
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.filterBtn, { backgroundColor: colors.error }]}
+                  onPress={clearFilters}
+                  activeOpacity={0.8}
+                >
+                  <MaterialIcons name="clear" size={18} color="#fff" />
+                  <Text style={styles.filterBtnText}>Limpiar Filtros</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {filteredMovements.length === 0 ? (
             <View style={[styles.emptyContainer, { backgroundColor: cardBackground, borderColor }]}>
               <MaterialIcons name="shopping-cart" size={48} color={textSecondary} />
-              <Text style={[styles.emptyText, { color: textSecondary }]}>No hay movimientos registrados.</Text>
+              <Text style={[styles.emptyText, { color: textSecondary }]}>
+                {isWeb && (startDate || endDate)
+                  ? "No se encontraron movimientos con los filtros aplicados."
+                  : "No hay movimientos registrados."}
+              </Text>
             </View>
           ) : (
             <FlatList
-              data={movements}
+              data={filteredMovements}
               keyExtractor={(item) => item.id_movimiento.toString()}
               renderItem={renderMovement}
               showsVerticalScrollIndicator={false}
@@ -257,5 +370,114 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     letterSpacing: -0.3,
+  },
+  // Estilos para resumen
+  summaryCard: {
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-around",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)",
+      },
+      default: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+        elevation: 4,
+      },
+    }),
+  },
+  summaryItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  summaryText: {
+    alignItems: "flex-start",
+  },
+  summaryValue: {
+    fontSize: 28,
+    fontWeight: "700",
+  },
+  summaryLabel: {
+    fontSize: 14,
+    marginTop: 2,
+  },
+  // Estilos para filtros
+  filtersContainer: {
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    gap: 16,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)",
+      },
+      default: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+        elevation: 4,
+      },
+    }),
+  },
+  filtersRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  filterInput: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    backgroundColor: "transparent",
+  },
+  inputIcon: {
+    marginRight: 8,
+  },
+  input: {
+    flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 4,
+    fontSize: 16,
+    borderWidth: 0,
+  },
+  filterButtons: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 8,
+    alignItems: "center",
+  },
+  filterCounter: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  filterCounterText: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  filterBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    gap: 8,
+  },
+  filterBtnText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 15,
   },
 });

@@ -96,12 +96,13 @@ export default function ProductsScreen() {
         method: "DELETE",
       });
 
-      console.log(response);
-      console.log(await response.json());
-
       if (!response.ok) throw new Error("Error al eliminar producto");
 
-      setProductos((prev) => prev.filter((p) => p.id_producto !== id));
+      // Recargar todos los productos desde el servidor
+      const refreshResponse = await fetch(`${getApiUrl()}/products`);
+      const updatedProductos = await refreshResponse.json();
+      setProductos(updatedProductos);
+
       Alert.alert("Éxito", "Producto eliminado correctamente");
     } catch (error) {
       console.error("Error al eliminar:", error);
@@ -127,8 +128,6 @@ export default function ProductsScreen() {
       return;
     }
 
-    console.log(productoEdit);
-
     try {
       const response = await fetch(
         `${getApiUrl()}/products/${productoEdit.id_producto}`,
@@ -139,12 +138,19 @@ export default function ProductsScreen() {
         }
       );
 
-      const nuevos = productos.map((p) =>
-        p.id_producto === productoEdit.id_producto ? productoEdit : p
-      );
-      setProductos(nuevos);
+      if (!response.ok) {
+        throw new Error("Error al actualizar el producto");
+      }
+
+      // Recargar todos los productos desde el servidor
+      const refreshResponse = await fetch(`${getApiUrl()}/products`);
+      const updatedProductos = await refreshResponse.json();
+      setProductos(updatedProductos);
+
+      Alert.alert("Éxito", "Producto actualizado correctamente");
     } catch (error) {
       console.log("ERROR EDITAR PRODUCTOS", error);
+      Alert.alert("Error", "No se pudo actualizar el producto");
     } finally {
       cerrarModal();
     }

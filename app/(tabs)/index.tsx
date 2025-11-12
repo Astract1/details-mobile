@@ -52,18 +52,34 @@ export default function ClientesScreen() {
       return;
     }
 
-    if (editandoId) {
-      // Si se está editando un cliente existente
-      const actualizados = clientes.map((c) =>
-        c.id_cliente === editandoId ? { ...c, nombre, direccion, telefono } : c
-      );
-      setClientes(actualizados);
-      setEditandoId(null);
+    try {
+      if (editandoId) {
+        // Actualizar cliente existente
+        const response = await fetch(
+          `${getApiUrl()}/clients/${editandoId}`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              nombre,
+              direccion,
+              telefono,
+            }),
+          }
+        );
 
-      const response = await fetch(
-        `${getApiUrl()}/clients/${editandoId}`,
-        {
-          method: "PUT",
+        if (!response.ok) {
+          throw new Error("Error al actualizar el cliente");
+        }
+
+        Alert.alert("Éxito", "Cliente actualizado correctamente");
+        setEditandoId(null);
+      } else {
+        // Crear nuevo cliente
+        const response = await fetch(`${getApiUrl()}/clients`, {
+          method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
@@ -72,39 +88,27 @@ export default function ClientesScreen() {
             direccion,
             telefono,
           }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Error al crear el cliente");
         }
-      );
 
-      Alert.alert("Éxito", "Cliente actualizado correctamente");
-    } else {
-      // Crear nuevo cliente
-      const nuevoCliente: Cliente = {
-        id_cliente: clientes.length + 1,
-        nombre,
-        direccion,
-        telefono,
-      };
-      setClientes([...clientes, nuevoCliente]);
-      Alert.alert("Éxito", "Cliente agregado correctamente");
+        Alert.alert("Éxito", "Cliente agregado correctamente");
+      }
 
-      const response = await fetch(`${getApiUrl()}/clients`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          nombre,
-          direccion,
-          telefono,
-        }),
-      });
+      // Recargar todos los clientes desde el servidor
+      const refreshResponse = await fetch(`${getApiUrl()}/clients`);
+      const updatedClientes = await refreshResponse.json();
+      setClientes(updatedClientes);
 
-      console.log("RESPUESTA AGREGAR CLIENTES", response);
+      setNombre("");
+      setDireccion("");
+      setTelefono("");
+    } catch (error) {
+      console.error("Error:", error);
+      Alert.alert("Error", "No se pudo completar la operación");
     }
-
-    setNombre("");
-    setDireccion("");
-    setTelefono("");
   };
 
   // 🔹 Eliminar cliente
@@ -118,10 +122,10 @@ export default function ClientesScreen() {
         throw new Error("Error al eliminar el cliente");
       }
 
-      // Actualizamos el estado eliminando el cliente
-      setClientes((prevClientes) =>
-        prevClientes.filter((c) => c.id_cliente !== id)
-      );
+      // Recargar todos los clientes desde el servidor
+      const refreshResponse = await fetch(`${getApiUrl()}/clients`);
+      const updatedClientes = await refreshResponse.json();
+      setClientes(updatedClientes);
 
       Alert.alert("Éxito", "Cliente eliminado correctamente");
     } catch (error) {

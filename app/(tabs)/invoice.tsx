@@ -52,6 +52,7 @@ type InvoiceDetails = {
 
 export default function InvoicesScreen() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [filteredInvoices, setFilteredInvoices] = useState<Invoice[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceDetails | null>(null);
@@ -60,7 +61,12 @@ export default function InvoicesScreen() {
   const [productId, setProductId] = useState("");
   const [newProducts, setNewProducts] = useState<any[]>([]);
   const [availableProducts, setAvailableProducts] = useState<any[]>([]);
-  
+
+  // Estados de filtros (solo para web)
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [clientFilter, setClientFilter] = useState("");
+
   const { isWeb, width } = useResponsive();
   const colorScheme = useColorScheme() ?? "light"; // Forzar tema claro
   const colors = Colors[colorScheme];
@@ -69,7 +75,7 @@ export default function InvoicesScreen() {
   const borderColor = Colors[colorScheme].border;
   const textColor = Colors[colorScheme].text;
   const textSecondary = Colors[colorScheme].textSecondary;
-  
+
   const maxContentWidth = isWeb && width > 768 ? 900 : undefined;
   const horizontalPadding = isWeb && width > 768 ? 40 : 16;
 
@@ -103,7 +109,7 @@ export default function InvoicesScreen() {
       return alert("Debe agregar al menos un producto");
 
     const total = newProducts.reduce(
-      (acc, p) => acc + p.price * p.cantidadTotal,
+      (acc, p) => acc + (parseFloat(p.price) * parseInt(p.cantidadTotal)),
       0
     );
 
@@ -147,15 +153,14 @@ export default function InvoicesScreen() {
         return;
       }
 
-      const newInvoice: any = {
-        id: data.factura.id_factura,
-        cliente: clientName.trim(),
-        products: newProducts.length,
-        total,
-      };
-      setInvoices((prev) => [...prev, newInvoice]);
+      // Recargar todas las facturas desde el servidor para mantener sincronización
+      const refreshResponse = await fetch(`${getApiUrl()}/invoices`);
+      const updatedInvoices = await refreshResponse.json();
+      setInvoices(updatedInvoices);
+      setFilteredInvoices(updatedInvoices);
 
       console.log("RESPUESTA CREAR FACTURA:", data);
+      Alert.alert("Éxito", "Factura creada correctamente");
 
       // Actualizar productos
       try {
@@ -221,6 +226,7 @@ export default function InvoicesScreen() {
         console.log("INVOICES", data);
 
         setInvoices(data);
+        setFilteredInvoices(data);
       } catch (error) {
         console.error("Error al cargar facturas:", error);
         Alert.alert("Error", "No se pudieron cargar las facturas");
@@ -229,6 +235,47 @@ export default function InvoicesScreen() {
 
     fetchInvoices();
   }, []);
+
+  // Auto-aplicar filtros cuando cambian los valores o las facturas
+  useEffect(() => {
+    let filtered = [...invoices];
+
+    // Filtrar por cliente
+    if (clientFilter.trim()) {
+      filtered = filtered.filter(inv =>
+        inv.cliente.toLowerCase().includes(clientFilter.toLowerCase())
+      );
+    }
+
+    // Filtrar por rango de fechas
+    if (startDate) {
+      filtered = filtered.filter(inv => {
+        if (!inv.fecha) return false;
+        const invoiceDate = new Date(inv.fecha);
+        const start = new Date(startDate);
+        return invoiceDate >= start;
+      });
+    }
+
+    if (endDate) {
+      filtered = filtered.filter(inv => {
+        if (!inv.fecha) return false;
+        const invoiceDate = new Date(inv.fecha);
+        const end = new Date(endDate);
+        // Agregar un día completo al final
+        end.setHours(23, 59, 59, 999);
+        return invoiceDate <= end;
+      });
+    }
+
+    setFilteredInvoices(filtered);
+  }, [clientFilter, startDate, endDate, invoices]);
+
+  const clearFilters = () => {
+    setStartDate("");
+    setEndDate("");
+    setClientFilter("");
+  };
 
   const handleInvoicePress = async (invoice: Invoice) => {
     setLoadingDetails(true);
@@ -295,7 +342,7 @@ export default function InvoicesScreen() {
   };
 
   const totalNewInvoice = newProducts.reduce(
-    (acc, p) => acc + p.price * p.cantidadTotal,
+    (acc, p) => acc + (parseFloat(p.price) * parseInt(p.cantidadTotal)),
     0
   );
 
@@ -309,27 +356,91 @@ export default function InvoicesScreen() {
                 Facturas
               </ThemedText>
               <ThemedText type="default" style={[styles.subtitle, { color: textSecondary }]}>
-                Gestiona tus facturas y ventas
+                {isWeb ? "Consulta el historial de facturas" : "Gestiona tus facturas y ventas"}
               </ThemedText>
             </View>
-            <TouchableOpacity
-              style={[styles.createButton, { backgroundColor: colors.primary }]}
-              onPress={() => setModalVisible(true)}
-              activeOpacity={0.8}
-            >
-              <MaterialIcons name="add" size={20} color="#fff" />
-              <Text style={styles.createButtonText}>Crear factura</Text>
-            </TouchableOpacity>
+            {!isWeb && (
+              <TouchableOpacity
+                style={[styles.createButton, { backgroundColor: colors.primary }]}
+                onPress={() => setModalVisible(true)}
+                activeOpacity={0.8}
+              >
+                <MaterialIcons name="add" size={20} color="#fff" />
+                <Text style={styles.createButtonText}>Crear factura</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
-          {invoices.length === 0 ? (
+          {/* Filtros solo para web */}
+          {isWeb && (
+            <View style={[styles.filtersContainer, { backgroundColor: cardBackground, borderColor }]}>
+              <View style={styles.filtersRow}>
+                <View style={[styles.filterInput, { flex: 1 }]}>
+                  <MaterialIcons name="search" size={20} color={colors.primary} style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, { color: textColor, borderColor }]}
+                    placeholder="Buscar por cliente..."
+                    value={clientFilter}
+                    onChangeText={setClientFilter}
+                    placeholderTextColor={textSecondary}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.filtersRow}>
+                <View style={[styles.filterInput, { flex: 1 }]}>
+                  <MaterialIcons name="event" size={20} color={colors.primary} style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, { color: textColor, borderColor }]}
+                    placeholder="Fecha inicio (YYYY-MM-DD)"
+                    value={startDate}
+                    onChangeText={setStartDate}
+                    placeholderTextColor={textSecondary}
+                  />
+                </View>
+                <View style={[styles.filterInput, { flex: 1 }]}>
+                  <MaterialIcons name="event" size={20} color={colors.primary} style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, { color: textColor, borderColor }]}
+                    placeholder="Fecha fin (YYYY-MM-DD)"
+                    value={endDate}
+                    onChangeText={setEndDate}
+                    placeholderTextColor={textSecondary}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.filterButtons}>
+                <View style={styles.filterCounter}>
+                  <MaterialIcons name="info-outline" size={16} color={colors.primary} />
+                  <Text style={[styles.filterCounterText, { color: textSecondary }]}>
+                    Mostrando {filteredInvoices.length} de {invoices.length} facturas
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.filterBtn, { backgroundColor: colors.error }]}
+                  onPress={clearFilters}
+                  activeOpacity={0.8}
+                >
+                  <MaterialIcons name="clear" size={18} color="#fff" />
+                  <Text style={styles.filterBtnText}>Limpiar Filtros</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {filteredInvoices.length === 0 ? (
             <View style={[styles.emptyContainer, { backgroundColor: cardBackground, borderColor }]}>
               <MaterialIcons name="receipt-long" size={48} color={textSecondary} />
-              <Text style={[styles.emptyText, { color: textSecondary }]}>No hay facturas registradas.</Text>
+              <Text style={[styles.emptyText, { color: textSecondary }]}>
+                {isWeb && (startDate || endDate || clientFilter)
+                  ? "No se encontraron facturas con los filtros aplicados."
+                  : "No hay facturas registradas."}
+              </Text>
             </View>
           ) : (
             <FlatList
-              data={invoices}
+              data={filteredInvoices}
               keyExtractor={(item) => item.id.toString()}
               renderItem={renderInvoice}
               showsVerticalScrollIndicator={false}
@@ -535,7 +646,7 @@ export default function InvoicesScreen() {
                         <View style={styles.productInfo}>
                           <Text style={[styles.productName, { color: textColor }]}>{p.name}</Text>
                           <Text style={[styles.productPrice, { color: colors.success }]}>
-                            ${(p.price * p.cantidadTotal).toLocaleString()}
+                            ${(parseFloat(p.price) * parseInt(p.cantidadTotal)).toLocaleString()}
                           </Text>
                         </View>
                         <View style={styles.qtyButtons}>
@@ -942,5 +1053,67 @@ const styles = StyleSheet.create({
   productTotal: {
     fontSize: 18,
     fontWeight: "700",
+  },
+  // Estilos para filtros
+  filtersContainer: {
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    gap: 16,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)",
+      },
+      default: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+        elevation: 4,
+      },
+    }),
+  },
+  filtersRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  filterInput: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    backgroundColor: "transparent",
+  },
+  filterButtons: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 8,
+    alignItems: "center",
+  },
+  filterCounter: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  filterCounterText: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  filterBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    gap: 8,
+  },
+  filterBtnText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 15,
   },
 });

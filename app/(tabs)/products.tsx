@@ -19,6 +19,7 @@ import {
 } from "react-native";
 import { useToast } from "@/components/toast/ToastContext";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface Producto {
   id_producto: number;
@@ -240,13 +241,16 @@ export default function ProductsScreen() {
               <ThemedText type="title" style={styles.title}>
                 Gestión de Productos
               </ThemedText>
-              <TouchableOpacity
-                onPress={handleRefresh}
-                style={[styles.refreshButton, { backgroundColor: colors.primary + "15" }]}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="refresh" size={22} color={colors.primary} />
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                <ThemeToggle />
+                <TouchableOpacity
+                  onPress={handleRefresh}
+                  style={[styles.refreshButton, { backgroundColor: colors.primary + "15" }]}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="refresh" size={22} color={colors.primary} />
+                </TouchableOpacity>
+              </View>
             </View>
             <ThemedText type="default" style={[styles.subtitle, { color: textSecondary }]}>
               Agrega y administra tus productos fácilmente

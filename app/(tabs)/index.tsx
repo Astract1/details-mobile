@@ -21,6 +21,7 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useToast } from "@/components/toast/ToastContext";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface Cliente {
   id_cliente: number;
@@ -200,12 +201,15 @@ export default function ClientesScreen() {
         <View style={[styles.container, maxContentWidth && { maxWidth: maxContentWidth, alignSelf: "center" }]}>
           {/* Encabezado */}
           <View style={styles.header}>
-            <ThemedText type="title" style={styles.title}>
-              Gestión de Clientes
-            </ThemedText>
-            <ThemedText type="default" style={[styles.subtitle, { color: textSecondary }]}>
-              Registra, edita o elimina tus clientes fácilmente.
-            </ThemedText>
+            <View style={{ flex: 1 }}>
+              <ThemedText type="title" style={styles.title}>
+                Gestión de Clientes
+              </ThemedText>
+              <ThemedText type="default" style={[styles.subtitle, { color: textSecondary }]}>
+                Registra, edita o elimina tus clientes fácilmente.
+              </ThemedText>
+            </View>
+            <ThemeToggle />
           </View>
 
         {/* Formulario */}
@@ -391,6 +395,9 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: 24,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
   },
   title: {
     fontSize: 32,

@@ -11,6 +11,7 @@ import { useThemeColor } from "@/hooks/use-theme-color";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useToast } from "@/components/toast/ToastContext";
 import { DatePicker } from "@/components/DatePicker";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 type Product = {
   id: number;
@@ -160,7 +161,7 @@ export default function MovementsScreen() {
         <View style={[styles.contentWrapper, maxContentWidth && { maxWidth: maxContentWidth, alignSelf: "center" }]}>
           <View style={styles.header}>
             <View style={styles.headerRow}>
-              <View>
+              <View style={{ flex: 1 }}>
                 <ThemedText type="title" style={styles.title}>
                   Historial de Movimientos
                 </ThemedText>
@@ -168,18 +169,21 @@ export default function MovementsScreen() {
                   Consulta las transacciones y ventas realizadas
                 </ThemedText>
               </View>
-              <TouchableOpacity
-                onPress={handleRefresh}
-                style={[styles.refreshButton, { backgroundColor: colors.primary + "15" }]}
-                activeOpacity={0.8}
-                disabled={isRefreshing}
-              >
+              <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                <ThemeToggle />
+                <TouchableOpacity
+                  onPress={handleRefresh}
+                  style={[styles.refreshButton, { backgroundColor: colors.primary + "15" }]}
+                  activeOpacity={0.8}
+                  disabled={isRefreshing}
+                >
                 {isRefreshing ? (
                   <ActivityIndicator size="small" color={colors.primary} />
                 ) : (
                   <Ionicons name="refresh" size={22} color={colors.primary} />
                 )}
               </TouchableOpacity>
+              </View>
             </View>
           </View>
 

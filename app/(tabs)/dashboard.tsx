@@ -16,6 +16,7 @@ import {
   View
 } from "react-native";
 import { useToast } from "@/components/toast/ToastContext";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface DashboardData {
   overview: {
@@ -119,7 +120,7 @@ export default function DashboardScreen() {
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerRow}>
-              <View>
+              <View style={{ flex: 1 }}>
                 <ThemedText type="title" style={styles.title}>
                   Dashboard
                 </ThemedText>
@@ -127,18 +128,21 @@ export default function DashboardScreen() {
                   Resumen general de tu negocio
                 </ThemedText>
               </View>
-              <TouchableOpacity
-                onPress={handleRefresh}
-                style={[styles.refreshButton, { backgroundColor: colors.primary + "15" }]}
-                activeOpacity={0.8}
-                disabled={isRefreshing}
-              >
+              <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                <ThemeToggle />
+                <TouchableOpacity
+                  onPress={handleRefresh}
+                  style={[styles.refreshButton, { backgroundColor: colors.primary + "15" }]}
+                  activeOpacity={0.8}
+                  disabled={isRefreshing}
+                >
                 {isRefreshing ? (
                   <ActivityIndicator size="small" color={colors.primary} />
                 ) : (
                   <Ionicons name="refresh" size={22} color={colors.primary} />
                 )}
               </TouchableOpacity>
+              </View>
             </View>
           </View>
 

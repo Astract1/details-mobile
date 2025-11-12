@@ -1,6 +1,7 @@
 import { DatePicker } from "@/components/DatePicker";
 import { ThemedText } from "@/components/themed-text";
 import { useToast } from "@/components/toast/ToastContext";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { getApiUrl } from "@/constants/api";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -462,7 +463,7 @@ export default function InvoicesScreen() {
       <View style={[styles.container, { paddingHorizontal: horizontalPadding }]}>
         <View style={[styles.contentWrapper, maxContentWidth && { maxWidth: maxContentWidth, alignSelf: "center" }]}>
           <View style={styles.header}>
-            <View>
+            <View style={{ flex: 1 }}>
               <ThemedText type="title" style={styles.title}>
                 Facturas
               </ThemedText>
@@ -470,16 +471,19 @@ export default function InvoicesScreen() {
                 {isWeb ? "Consulta el historial de facturas" : "Gestiona tus facturas y ventas"}
               </ThemedText>
             </View>
-            {!isWeb && (
-              <TouchableOpacity
-                style={[styles.createButton, { backgroundColor: colors.primary }]}
-                onPress={() => setModalVisible(true)}
-                activeOpacity={0.8}
-              >
-                <MaterialIcons name="add" size={20} color="#fff" />
-                <Text style={styles.createButtonText}>Crear factura</Text>
-              </TouchableOpacity>
-            )}
+            <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+              <ThemeToggle />
+              {!isWeb && (
+                <TouchableOpacity
+                  style={[styles.createButton, { backgroundColor: colors.primary }]}
+                  onPress={() => setModalVisible(true)}
+                  activeOpacity={0.8}
+                >
+                  <MaterialIcons name="add" size={20} color="#fff" />
+                  <Text style={styles.createButtonText}>Crear factura</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
 
           {/* Filtros solo para web */}

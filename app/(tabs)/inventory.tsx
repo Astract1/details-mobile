@@ -4,7 +4,7 @@ import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useResponsive } from "@/hooks/use-responsive";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -16,6 +16,8 @@ import {
   View
 } from "react-native";
 import { useToast } from "@/components/toast/ToastContext";
+import { useFocusEffect } from "@react-navigation/native";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface Producto {
   id_producto: number;
@@ -27,7 +29,6 @@ interface Producto {
 export default function InventoryScreen() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [isLoadingList, setIsLoadingList] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const toast = useToast();
   const { isWeb, width } = useResponsive();
@@ -42,38 +43,31 @@ export default function InventoryScreen() {
   const maxContentWidth = isWeb && width > 768 ? 1000 : undefined;
   const horizontalPadding = isWeb && width > 768 ? 40 : 16;
 
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
+  const fetchProductos = useCallback(async () => {
     try {
       const response = await fetch(`${getApiUrl()}/products`);
       const data = await response.json();
       setProductos(data);
-      toast.success("Inventario actualizado");
     } catch (error) {
       console.error("Error al cargar productos:", error);
       toast.error("No se pudieron cargar los productos");
     } finally {
-      setIsRefreshing(false);
+      setIsLoadingList(false);
     }
-  };
+  }, [toast]);
 
+  // Cargar productos al montar el componente
   useEffect(() => {
-    const fetchProductos = async () => {
-      setIsLoadingList(true);
-      try {
-        const response = await fetch(`${getApiUrl()}/products`);
-        const data = await response.json();
-        setProductos(data);
-      } catch (error) {
-        console.error("Error al cargar productos:", error);
-        toast.error("No se pudieron cargar los productos");
-      } finally {
-        setIsLoadingList(false);
-      }
-    };
-
+    setIsLoadingList(true);
     fetchProductos();
   }, []);
+
+  // Recargar productos automáticamente cuando la pantalla gana foco
+  useFocusEffect(
+    useCallback(() => {
+      fetchProductos();
+    }, [fetchProductos])
+  );
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]}>
@@ -87,26 +81,15 @@ export default function InventoryScreen() {
         <View style={[styles.container, maxContentWidth && { maxWidth: maxContentWidth, alignSelf: "center" }]}>
           {/* Encabezado */}
           <View style={styles.header}>
-            <View style={styles.headerRow}>
+            <View style={{ flex: 1 }}>
               <ThemedText type="title" style={styles.title}>
                 Inventario de Productos
               </ThemedText>
-              <TouchableOpacity
-                onPress={handleRefresh}
-                style={[styles.refreshButton, { backgroundColor: colors.primary + "15" }]}
-                activeOpacity={0.8}
-                disabled={isRefreshing}
-              >
-                {isRefreshing ? (
-                  <ActivityIndicator size="small" color={colors.primary} />
-                ) : (
-                  <Ionicons name="refresh" size={22} color={colors.primary} />
-                )}
-              </TouchableOpacity>
+              <ThemedText type="default" style={[styles.subtitle, { color: textSecondary }]}>
+                Consulta el stock y precios actuales de tus productos
+              </ThemedText>
             </View>
-            <ThemedText type="default" style={[styles.subtitle, { color: textSecondary }]}>
-              Consulta el stock y precios actuales de tus productos
-            </ThemedText>
+            <ThemeToggle />
           </View>
 
           {/* Resumen de inventario */}
@@ -231,28 +214,9 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: 24,
-  },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  refreshButton: {
-    padding: 10,
-    borderRadius: 50,
-    ...Platform.select({
-      web: {
-        boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)" as any,
-      },
-      default: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
-      },
-    }) as any,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
   },
   title: {
     fontSize: 32,

@@ -1,4 +1,6 @@
+import { DatePicker } from "@/components/DatePicker";
 import { ThemedText } from "@/components/themed-text";
+import { useToast } from "@/components/toast/ToastContext";
 import { getApiUrl } from "@/constants/api";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -18,8 +20,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useToast } from "@/components/toast/ToastContext";
-import { DatePicker } from "@/components/DatePicker";
 
 type Product = {
   id: number;
@@ -66,6 +66,16 @@ export default function InvoicesScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingList, setIsLoadingList] = useState(true);
 
+  // Estados para autocompletado de clientes
+  const [clients, setClients] = useState<any[]>([]);
+  const [showClientSuggestions, setShowClientSuggestions] = useState(false);
+  const [filteredClients, setFilteredClients] = useState<any[]>([]);
+
+  // Estados para selector de productos
+  const [showProductPicker, setShowProductPicker] = useState(false);
+  const [productSearchTerm, setProductSearchTerm] = useState("");
+  const [filteredProducts, setFilteredProducts] = useState<any[]>([]);
+
   // Estados de filtros (solo para web)
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -85,6 +95,31 @@ export default function InvoicesScreen() {
   const horizontalPadding = isWeb && width > 768 ? 40 : 16;
 
   const generateRandomId = () => Math.floor(1000 + Math.random() * 9000);
+
+  // Seleccionar un cliente del autocompletado
+  const selectClient = (clientName: string) => {
+    setClientName(clientName);
+    setShowClientSuggestions(false);
+  };
+
+  // Agregar producto desde el selector
+  const handleAddProductFromPicker = (product: any) => {
+    const alreadyAdded = newProducts.find((p) => p.id === product.id);
+    if (alreadyAdded) {
+      toast.warning("Este producto ya fue agregado");
+      return;
+    }
+
+    if (product.quantity <= 0) {
+      toast.error("Este producto no tiene stock disponible");
+      return;
+    }
+
+    setNewProducts([...newProducts, { ...product, cantidadTotal: 1 }]);
+    setShowProductPicker(false);
+    setProductSearchTerm("");
+    toast.success("Producto agregado");
+  };
 
   const handleAddProduct = () => {
     const id = Number(productId);
@@ -218,6 +253,24 @@ export default function InvoicesScreen() {
     }
   };
 
+  // Cargar clientes
+  useEffect(() => {
+    const fetchClients = async () => {
+      try {
+        const response = await fetch(`${getApiUrl()}/clients`);
+        const data = await response.json();
+        setClients(data);
+      } catch (error) {
+        console.error("Error al cargar clientes:", error);
+      }
+    };
+
+    if (modalVisible) {
+      fetchClients();
+    }
+  }, [modalVisible]);
+
+  // Cargar productos
   useEffect(() => {
     const fetchProductos = async () => {
       try {
@@ -232,14 +285,45 @@ export default function InvoicesScreen() {
         }));
 
         setAvailableProducts(products);
+        setFilteredProducts(products);
       } catch (error) {
         console.error("Error al cargar productos:", error);
         toast.error("No se pudieron cargar los productos");
       }
     };
 
-    fetchProductos();
+    if (modalVisible) {
+      fetchProductos();
+    }
   }, [modalVisible]);
+
+  // Filtrar clientes mientras escribe
+  useEffect(() => {
+    if (clientName.trim() === "") {
+      setFilteredClients([]);
+      setShowClientSuggestions(false);
+      return;
+    }
+
+    const filtered = clients.filter(client =>
+      client.nombre.toLowerCase().includes(clientName.toLowerCase())
+    );
+    setFilteredClients(filtered);
+    setShowClientSuggestions(filtered.length > 0);
+  }, [clientName, clients]);
+
+  // Filtrar productos por búsqueda
+  useEffect(() => {
+    if (productSearchTerm.trim() === "") {
+      setFilteredProducts(availableProducts);
+      return;
+    }
+
+    const filtered = availableProducts.filter(product =>
+      product.name.toLowerCase().includes(productSearchTerm.toLowerCase())
+    );
+    setFilteredProducts(filtered);
+  }, [productSearchTerm, availableProducts]);
 
   useEffect(() => {
     const fetchInvoices = async () => {
@@ -667,37 +751,55 @@ export default function InvoicesScreen() {
                 </TouchableOpacity>
               </View>
 
-              <View style={styles.inputContainer}>
-                <MaterialIcons name="person" size={20} color={colors.primary} style={styles.inputIcon} />
-                <TextInput
-                  style={[styles.input, { color: textColor, borderColor }]}
-                  placeholder="Nombre del cliente"
-                  value={clientName}
-                  onChangeText={setClientName}
-                  placeholderTextColor={textSecondary}
-                />
-              </View>
-
-              <View style={styles.row}>
-                <View style={[styles.inputContainer, { flex: 1 }]}>
-                  <MaterialIcons name="tag" size={20} color={colors.primary} style={styles.inputIcon} />
+              {/* Autocompletado de clientes */}
+              <View style={{ position: 'relative', zIndex: 1000 }}>
+                <View style={styles.inputContainer}>
+                  <MaterialIcons name="person" size={20} color={colors.primary} style={styles.inputIcon} />
                   <TextInput
                     style={[styles.input, { color: textColor, borderColor }]}
-                    placeholder="ID del producto"
-                    value={productId}
-                    onChangeText={setProductId}
-                    keyboardType="numeric"
+                    placeholder="Buscar o escribir nombre del cliente"
+                    value={clientName}
+                    onChangeText={setClientName}
                     placeholderTextColor={textSecondary}
                   />
                 </View>
-                <TouchableOpacity
-                  style={[styles.addButton, { backgroundColor: colors.primary }]}
-                  onPress={handleAddProduct}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.addButtonText}>Añadir</Text>
-                </TouchableOpacity>
+
+                {/* Sugerencias de clientes */}
+                {showClientSuggestions && filteredClients.length > 0 && (
+                  <View style={[styles.suggestionsContainer, { backgroundColor: cardBackground, borderColor }]}>
+                    <ScrollView style={styles.suggestionsList} nestedScrollEnabled={true}>
+                      {filteredClients.map((client) => (
+                        <TouchableOpacity
+                          key={client.id_cliente}
+                          style={[styles.suggestionItem, { borderBottomColor: borderColor }]}
+                          onPress={() => selectClient(client.nombre)}
+                          activeOpacity={0.7}
+                        >
+                          <MaterialIcons name="person" size={18} color={colors.primary} />
+                          <View style={{ marginLeft: 10, flex: 1 }}>
+                            <Text style={[styles.suggestionText, { color: textColor }]}>{client.nombre}</Text>
+                            {client.telefono && (
+                              <Text style={[styles.suggestionSubtext, { color: textSecondary }]}>{client.telefono}</Text>
+                            )}
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
               </View>
+
+              {/* Selector visual de productos */}
+              <TouchableOpacity
+                style={[styles.productPickerButton, { backgroundColor: colors.primary + "15", borderColor: colors.primary }]}
+                onPress={() => setShowProductPicker(true)}
+                activeOpacity={0.7}
+              >
+                <MaterialIcons name="add-shopping-cart" size={22} color={colors.primary} />
+                <Text style={[styles.productPickerButtonText, { color: colors.primary }]}>
+                  Buscar y agregar productos
+                </Text>
+              </TouchableOpacity>
 
               {newProducts.length > 0 && (
                 <>
@@ -770,6 +872,103 @@ export default function InvoicesScreen() {
               </View>
             </View>
           </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Modal de selector de productos */}
+      <Modal
+        visible={showProductPicker}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowProductPicker(false)}
+      >
+        <View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
+          <View style={[styles.productPickerModal, { backgroundColor: cardBackground, borderColor }]}>
+            <View style={styles.modalHeader}>
+              <ThemedText type="subtitle" style={styles.modalTitle}>
+                Seleccionar producto
+              </ThemedText>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowProductPicker(false);
+                  setProductSearchTerm("");
+                }}
+                style={styles.closeButton}
+              >
+                <MaterialIcons name="close" size={24} color={textColor} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Búsqueda de productos */}
+            <View style={styles.inputContainer}>
+              <MaterialIcons name="search" size={20} color={colors.primary} style={styles.inputIcon} />
+              <TextInput
+                style={[styles.input, { color: textColor, borderColor }]}
+                placeholder="Buscar producto por nombre..."
+                value={productSearchTerm}
+                onChangeText={setProductSearchTerm}
+                placeholderTextColor={textSecondary}
+                autoFocus
+              />
+            </View>
+
+            {/* Lista de productos */}
+            <ScrollView style={styles.productPickerList} showsVerticalScrollIndicator={false}>
+              {filteredProducts.length === 0 ? (
+                <View style={styles.emptyProductsContainer}>
+                  <MaterialIcons name="inventory-2" size={48} color={textSecondary} />
+                  <Text style={[styles.emptyText, { color: textSecondary }]}>
+                    No se encontraron productos
+                  </Text>
+                </View>
+              ) : (
+                filteredProducts.map((product) => (
+                  <TouchableOpacity
+                    key={product.id}
+                    style={[styles.productPickerItem, { backgroundColor: backgroundColor, borderColor }]}
+                    onPress={() => handleAddProductFromPicker(product)}
+                    activeOpacity={0.7}
+                    disabled={product.quantity <= 0}
+                  >
+                    <View style={[styles.productPickerIcon, { backgroundColor: colors.primary + "15" }]}>
+                      <MaterialIcons name="inventory-2" size={24} color={colors.primary} />
+                    </View>
+                    <View style={styles.productPickerInfo}>
+                      <Text style={[styles.productPickerName, { color: textColor }]}>
+                        {product.name}
+                      </Text>
+                      <View style={styles.productPickerDetails}>
+                        <View style={styles.productPickerDetail}>
+                          <MaterialIcons name="attach-money" size={16} color={colors.success} />
+                          <Text style={[styles.productPickerDetailText, { color: colors.success }]}>
+                            ${parseFloat(product.price).toLocaleString()}
+                          </Text>
+                        </View>
+                        <View style={styles.productPickerDetail}>
+                          <MaterialIcons
+                            name="inventory"
+                            size={16}
+                            color={product.quantity > 10 ? colors.success : product.quantity > 0 ? "#FFA500" : colors.error}
+                          />
+                          <Text style={[
+                            styles.productPickerDetailText,
+                            { color: product.quantity > 10 ? colors.success : product.quantity > 0 ? "#FFA500" : colors.error }
+                          ]}>
+                            Stock: {product.quantity}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                    <MaterialIcons
+                      name={product.quantity > 0 ? "add-circle" : "block"}
+                      size={28}
+                      color={product.quantity > 0 ? colors.primary : colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
+          </View>
         </View>
       </Modal>
     </SafeAreaView>
@@ -1218,5 +1417,126 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     fontWeight: "500",
+  },
+  // Estilos para autocompletado de clientes
+  suggestionsContainer: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    maxHeight: 200,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 4,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)" as any,
+      },
+      default: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+        elevation: 6,
+      },
+    }) as any,
+  },
+  suggestionsList: {
+    maxHeight: 200,
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+  },
+  suggestionText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  suggestionSubtext: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  // Estilos para selector de productos
+  productPickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    gap: 10,
+    marginBottom: 12,
+  },
+  productPickerButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  productPickerModal: {
+    borderRadius: 20,
+    padding: 24,
+    borderWidth: 1,
+    maxWidth: 600,
+    width: '90%',
+    maxHeight: '80%',
+    alignSelf: 'center',
+    ...Platform.select({
+      web: {
+        boxShadow: "0 8px 24px rgba(0, 0, 0, 0.2)" as any,
+      },
+      default: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.2,
+        shadowRadius: 16,
+        elevation: 8,
+      },
+    }) as any,
+  },
+  productPickerList: {
+    marginTop: 16,
+  },
+  emptyProductsContainer: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  productPickerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 10,
+    gap: 12,
+  },
+  productPickerIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  productPickerInfo: {
+    flex: 1,
+  },
+  productPickerName: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  productPickerDetails: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  productPickerDetail: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  productPickerDetailText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

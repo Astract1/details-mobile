@@ -753,14 +753,15 @@ export default function InvoicesScreen() {
 
               {/* Autocompletado de clientes */}
               <View style={{ position: 'relative', zIndex: 1000 }}>
-                <View style={styles.inputContainer}>
+                <View style={[styles.inputContainer, { borderColor }]}>
                   <MaterialIcons name="person" size={20} color={colors.primary} style={styles.inputIcon} />
                   <TextInput
-                    style={[styles.input, { color: textColor, borderColor }]}
+                    style={[styles.input, { color: textColor }]}
                     placeholder="Buscar o escribir nombre del cliente"
                     value={clientName}
                     onChangeText={setClientName}
                     placeholderTextColor={textSecondary}
+                    autoCapitalize="words"
                   />
                 </View>
 
@@ -900,15 +901,16 @@ export default function InvoicesScreen() {
             </View>
 
             {/* Búsqueda de productos */}
-            <View style={styles.inputContainer}>
+            <View style={[styles.inputContainer, { borderColor }]}>
               <MaterialIcons name="search" size={20} color={colors.primary} style={styles.inputIcon} />
               <TextInput
-                style={[styles.input, { color: textColor, borderColor }]}
+                style={[styles.input, { color: textColor }]}
                 placeholder="Buscar producto por nombre..."
                 value={productSearchTerm}
                 onChangeText={setProductSearchTerm}
                 placeholderTextColor={textSecondary}
                 autoFocus
+                autoCapitalize="none"
               />
             </View>
 

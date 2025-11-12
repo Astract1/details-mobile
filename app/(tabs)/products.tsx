@@ -57,15 +57,32 @@ export default function ProductsScreen() {
   const horizontalPadding = isWeb && width > 768 ? 40 : 16;
 
   const agregarProducto = async () => {
-    if (!nombre.trim() || !precio.trim()) {
-      toast.error("El nombre y el precio son obligatorios");
+    if (!nombre.trim()) {
+      toast.error("El nombre del producto es obligatorio");
+      return;
+    }
+
+    if (!precio.trim()) {
+      toast.error("El precio es obligatorio");
+      return;
+    }
+
+    const precioNumerico = parseFloat(precio);
+    if (isNaN(precioNumerico) || precioNumerico <= 0) {
+      toast.error("El precio debe ser un número mayor a 0");
+      return;
+    }
+
+    const stockNumerico = parseInt(stock) || 0;
+    if (stockNumerico < 0) {
+      toast.error("El stock no puede ser negativo");
       return;
     }
 
     const productoData = {
-      nombre,
-      precio_unitario: parseFloat(precio),
-      stock: parseInt(stock) || 0,
+      nombre: nombre.trim(),
+      precio_unitario: precioNumerico,
+      stock: stockNumerico,
     };
 
     setIsLoading(true);
@@ -238,35 +255,50 @@ export default function ProductsScreen() {
 
         {/* Formulario de creación */}
         <View style={[styles.form, { backgroundColor: cardBackground, borderColor }]}>
-          <View style={styles.inputContainer}>
+          <View style={[styles.inputContainer, { borderColor }]}>
             <MaterialIcons name="inventory-2" size={20} color={colors.primary} style={styles.inputIcon} />
             <TextInput
-              style={[styles.input, { color: textColor, borderColor }]}
+              style={[styles.input, { color: textColor }]}
               placeholder="Nombre del producto"
               value={nombre}
               onChangeText={setNombre}
               placeholderTextColor={textSecondary}
+              autoCapitalize="words"
             />
           </View>
-          <View style={styles.inputContainer}>
+          <View style={[styles.inputContainer, { borderColor }]}>
             <MaterialIcons name="attach-money" size={20} color={colors.primary} style={styles.inputIcon} />
             <TextInput
-              style={[styles.input, { color: textColor, borderColor }]}
+              style={[styles.input, { color: textColor }]}
               placeholder="Precio unitario"
               value={precio}
-              onChangeText={setPrecio}
-              keyboardType="numeric"
+              onChangeText={(text) => {
+                // Solo permitir números y un punto decimal
+                const cleaned = text.replace(/[^0-9.]/g, '');
+                // Evitar múltiples puntos decimales
+                const parts = cleaned.split('.');
+                if (parts.length > 2) {
+                  setPrecio(parts[0] + '.' + parts.slice(1).join(''));
+                } else {
+                  setPrecio(cleaned);
+                }
+              }}
+              keyboardType="decimal-pad"
               placeholderTextColor={textSecondary}
             />
           </View>
-          <View style={styles.inputContainer}>
+          <View style={[styles.inputContainer, { borderColor }]}>
             <MaterialIcons name="warehouse" size={20} color={colors.primary} style={styles.inputIcon} />
             <TextInput
-              style={[styles.input, { color: textColor, borderColor }]}
+              style={[styles.input, { color: textColor }]}
               placeholder="Stock disponible"
               value={stock}
-              onChangeText={setStock}
-              keyboardType="numeric"
+              onChangeText={(text) => {
+                // Solo permitir números enteros
+                const cleaned = text.replace(/[^0-9]/g, '');
+                setStock(cleaned);
+              }}
+              keyboardType="number-pad"
               placeholderTextColor={textSecondary}
             />
           </View>

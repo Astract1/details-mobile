@@ -210,33 +210,39 @@ export default function ClientesScreen() {
 
         {/* Formulario */}
         <View style={[styles.form, { backgroundColor: cardBackground, borderColor }]}>
-          <View style={styles.inputContainer}>
+          <View style={[styles.inputContainer, { borderColor }]}>
             <MaterialIcons name="person" size={20} color={colors.primary} style={styles.inputIcon} />
             <TextInput
-              style={[styles.input, { color: textColor, borderColor }]}
+              style={[styles.input, { color: textColor }]}
               placeholder="Nombre completo"
               value={nombre}
               onChangeText={setNombre}
               placeholderTextColor={textSecondary}
+              autoCapitalize="words"
             />
           </View>
-          <View style={styles.inputContainer}>
+          <View style={[styles.inputContainer, { borderColor }]}>
             <MaterialIcons name="location-on" size={20} color={colors.primary} style={styles.inputIcon} />
             <TextInput
-              style={[styles.input, { color: textColor, borderColor }]}
+              style={[styles.input, { color: textColor }]}
               placeholder="Dirección"
               value={direccion}
               onChangeText={setDireccion}
               placeholderTextColor={textSecondary}
+              autoCapitalize="sentences"
             />
           </View>
-          <View style={styles.inputContainer}>
+          <View style={[styles.inputContainer, { borderColor }]}>
             <MaterialIcons name="phone" size={20} color={colors.primary} style={styles.inputIcon} />
             <TextInput
-              style={[styles.input, { color: textColor, borderColor }]}
+              style={[styles.input, { color: textColor }]}
               placeholder="Teléfono"
               value={telefono}
-              onChangeText={setTelefono}
+              onChangeText={(text) => {
+                // Solo permitir números y algunos caracteres especiales de teléfono
+                const cleaned = text.replace(/[^0-9+\-() ]/g, '');
+                setTelefono(cleaned);
+              }}
               keyboardType="phone-pad"
               placeholderTextColor={textSecondary}
             />
